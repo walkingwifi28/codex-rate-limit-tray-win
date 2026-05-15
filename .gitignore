@@ -1,0 +1,11 @@
+bin/
+obj/
+.vs/
+.dotnet-sdk/
+dotnet-install.ps1
+TestResults/
+*.user
+*.suo
+*.nupkg
+artifacts/
+installer/Output/

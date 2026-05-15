@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\CodexRateLimitTray.Core\CodexRateLimitTray.Core.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>CodexRateLimitTray</AssemblyName>
+    <RootNamespace>CodexRateLimitTray</RootNamespace>
+    <Version>0.1.0</Version>
+    <ApplicationIcon />
+  </PropertyGroup>
+
+</Project>
