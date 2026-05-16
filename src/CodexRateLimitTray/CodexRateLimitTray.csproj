@@ -16,4 +16,8 @@
     <ApplicationIcon />
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="CodexRateLimitTray.Tests" />
+  </ItemGroup>
+
 </Project>

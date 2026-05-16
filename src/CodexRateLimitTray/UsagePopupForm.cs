@@ -15,11 +15,10 @@ internal sealed class UsagePopupForm : Form
 
     public UsagePopupForm()
     {
-        FormBorderStyle = FormBorderStyle.FixedSingle;
+        FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.Manual;
         TopMost = true;
-        BackColor = Color.White;
         Padding = new Padding(12);
         ClientSize = new Size(PopupWidth, 260);
 
@@ -41,10 +40,12 @@ internal sealed class UsagePopupForm : Form
         Deactivate += (_, _) => Hide();
     }
 
-    public void UpdateState(UsageState state)
+    public void UpdateState(UsageState state, IconTheme theme)
     {
+        ApplyTheme(theme);
+
         _graph.Image?.Dispose();
-        _graph.Image = RateLimitIconRenderer.RenderBitmap(state, 124);
+        _graph.Image = RateLimitIconRenderer.RenderBitmap(state, 124, theme);
 
         if (state.HasError)
         {
@@ -89,5 +90,16 @@ internal sealed class UsagePopupForm : Form
         label.Font = AppFonts.Create(10f);
         label.Location = new Point(HorizontalPadding, top);
         label.Size = new Size(LabelWidth, 22);
+    }
+
+    private void ApplyTheme(IconTheme theme)
+    {
+        var palette = RateLimitIconRenderer.PaletteFor(theme);
+
+        BackColor = palette.BackgroundColor;
+        _graph.BackColor = palette.BackgroundColor;
+        _title.ForeColor = palette.TextColor;
+        _fiveHour.ForeColor = palette.TextColor;
+        _week.ForeColor = palette.TextColor;
     }
 }

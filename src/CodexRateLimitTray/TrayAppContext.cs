@@ -1,4 +1,5 @@
 using CodexRateLimitTray.Core;
+using Microsoft.Win32;
 
 namespace CodexRateLimitTray;
 
@@ -12,11 +13,14 @@ internal sealed class TrayAppContext : ApplicationContext
     private readonly UsagePopupForm _popup = new();
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = (int)RefreshSchedule.AutomaticRefreshInterval.TotalMilliseconds };
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
+    private readonly SynchronizationContext? _uiContext;
     private UsageState _currentState = UsageState.Error(UsageErrorKind.Network, "未取得");
     private Icon? _currentIcon;
+    private bool _isDisposed;
 
     public TrayAppContext()
     {
+        _uiContext = SynchronizationContext.Current;
         _usageClient = new WhamUsageClient(_httpClient, TimeZoneInfo.Local);
         BuildMenu();
 
@@ -24,6 +28,7 @@ internal sealed class TrayAppContext : ApplicationContext
         _notifyIcon.ContextMenuStrip = _menu;
         _notifyIcon.MouseUp += OnNotifyIconMouseUp;
         _notifyIcon.Visible = true;
+        SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
 
         UpdateTrayVisual();
 
@@ -36,8 +41,10 @@ internal sealed class TrayAppContext : ApplicationContext
     {
         if (disposing)
         {
+            _isDisposed = true;
             _timer.Dispose();
             _popup.Dispose();
+            SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
             _notifyIcon.Visible = false;
             _notifyIcon.Dispose();
             _menu.Dispose();
@@ -76,7 +83,7 @@ internal sealed class TrayAppContext : ApplicationContext
         }
 
         await RefreshAsync().ConfigureAwait(true);
-        _popup.UpdateState(_currentState);
+        _popup.UpdateState(_currentState, WindowsThemeReader.GetIconTheme());
         _popup.ShowNearCursor();
     }
 
@@ -94,7 +101,6 @@ internal sealed class TrayAppContext : ApplicationContext
                 ? await _usageClient.GetUsageAsync(auth.Token!, CancellationToken.None).ConfigureAwait(true)
                 : UsageState.Error(UsageErrorKind.AuthFile, auth.Message);
             UpdateTrayVisual();
-            _popup.UpdateState(_currentState);
         }
         finally
         {
@@ -102,14 +108,46 @@ internal sealed class TrayAppContext : ApplicationContext
         }
     }
 
+    private void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
+    {
+        if (e.Category is UserPreferenceCategory.Color or UserPreferenceCategory.General or UserPreferenceCategory.VisualStyle)
+        {
+            RunOnUiThread(UpdateTrayVisual);
+        }
+    }
+
+    private void RunOnUiThread(Action action)
+    {
+        if (_isDisposed)
+        {
+            return;
+        }
+
+        if (_uiContext is null)
+        {
+            action();
+            return;
+        }
+
+        _uiContext.Post(_ =>
+        {
+            if (!_isDisposed)
+            {
+                action();
+            }
+        }, null);
+    }
+
     private void UpdateTrayVisual()
     {
-        var nextIcon = RateLimitIconRenderer.RenderIcon(_currentState);
+        var theme = WindowsThemeReader.GetIconTheme();
+        var nextIcon = RateLimitIconRenderer.RenderIcon(_currentState, theme: theme);
         var previousIcon = _currentIcon;
         _currentIcon = nextIcon;
         _notifyIcon.Icon = nextIcon;
         previousIcon?.Dispose();
         _notifyIcon.Text = ToNotifyIconText(_currentState);
+        _popup.UpdateState(_currentState, theme);
     }
 
     private static string ToNotifyIconText(UsageState state)

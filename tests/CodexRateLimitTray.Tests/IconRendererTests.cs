@@ -24,10 +24,78 @@ public sealed class IconRendererTests
 
         using var bitmap = RateLimitIconRenderer.RenderBitmap(state, 314);
 
-        AssertColorNear(RateLimitIconRenderer.InnerRingColor, bitmap.GetPixel(157, 157));
+        AssertColorNear(RateLimitIconRenderer.LightTheme.InnerRingColor, bitmap.GetPixel(157, 157));
         AssertColorNear(RateLimitIconRenderer.OuterRingColor, bitmap.GetPixel(210, 60));
-        AssertColorNear(RateLimitIconRenderer.BackgroundRingColor, bitmap.GetPixel(25, 157));
         Assert.Equal(0, bitmap.GetPixel(0, 0).A);
+    }
+
+    [Fact]
+    public void Renderer_uses_light_theme_palette()
+    {
+        var state = UsageState.Success(
+            new UsageWindow(100, DateTimeOffset.UnixEpoch),
+            new UsageWindow(100, DateTimeOffset.UnixEpoch));
+
+        using var bitmap = RateLimitIconRenderer.RenderBitmap(state, 314, IconTheme.Light);
+
+        Assert.Equal(ColorTranslator.FromHtml("#FFFFFF"), RateLimitIconRenderer.LightTheme.BackgroundColor);
+        Assert.Equal(ColorTranslator.FromHtml("#1A1C1F"), RateLimitIconRenderer.LightTheme.TextColor);
+        AssertColorNear(ColorTranslator.FromHtml("#1A1C1F"), bitmap.GetPixel(157, 157));
+        AssertColorNear(ColorTranslator.FromHtml("#339CFF"), bitmap.GetPixel(210, 60));
+        Assert.Equal(0, bitmap.GetPixel(0, 0).A);
+    }
+
+    [Fact]
+    public void Renderer_uses_dark_theme_palette()
+    {
+        var state = UsageState.Success(
+            new UsageWindow(100, DateTimeOffset.UnixEpoch),
+            new UsageWindow(100, DateTimeOffset.UnixEpoch));
+
+        using var bitmap = RateLimitIconRenderer.RenderBitmap(state, 314, IconTheme.Dark);
+
+        Assert.Equal(ColorTranslator.FromHtml("#181818"), RateLimitIconRenderer.DarkTheme.BackgroundColor);
+        Assert.Equal(ColorTranslator.FromHtml("#FFFFFF"), RateLimitIconRenderer.DarkTheme.TextColor);
+        AssertColorNear(ColorTranslator.FromHtml("#FFFFFF"), bitmap.GetPixel(157, 157));
+        AssertColorNear(ColorTranslator.FromHtml("#339CFF"), bitmap.GetPixel(210, 60));
+        Assert.Equal(0, bitmap.GetPixel(0, 0).A);
+    }
+
+    [Fact]
+    public void Renderer_leaves_unused_circle_area_transparent()
+    {
+        var state = UsageState.Success(
+            new UsageWindow(0, DateTimeOffset.UnixEpoch),
+            new UsageWindow(100, DateTimeOffset.UnixEpoch));
+
+        using var bitmap = RateLimitIconRenderer.RenderBitmap(state, 314, IconTheme.Light);
+
+        Assert.Equal(0, bitmap.GetPixel(157, 157).A);
+    }
+
+    [Fact]
+    public void Renderer_antialiases_popup_sized_pie_edges()
+    {
+        var state = UsageState.Success(
+            new UsageWindow(33, DateTimeOffset.UnixEpoch),
+            new UsageWindow(66, DateTimeOffset.UnixEpoch));
+
+        using var bitmap = RateLimitIconRenderer.RenderBitmap(state, 124, IconTheme.Light);
+
+        var partiallyTransparentPixels = 0;
+        for (var y = 0; y < bitmap.Height; y++)
+        {
+            for (var x = 0; x < bitmap.Width; x++)
+            {
+                var alpha = bitmap.GetPixel(x, y).A;
+                if (alpha is > 0 and < 255)
+                {
+                    partiallyTransparentPixels++;
+                }
+            }
+        }
+
+        Assert.InRange(partiallyTransparentPixels, 500, int.MaxValue);
     }
 
     private static void AssertColorNear(Color expected, Color actual)
