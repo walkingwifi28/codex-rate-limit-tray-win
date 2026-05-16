@@ -20,6 +20,7 @@ public static class RateLimitIconRenderer
     private const int SupersamplingScale = 4;
 
     public static readonly Color OuterRingColor = ColorTranslator.FromHtml("#339CFF");
+    public static readonly Color WeekProgressNeedleColor = ColorTranslator.FromHtml("#FF0000");
     public static readonly Color GraphBackgroundColor = ColorTranslator.FromHtml("#D9D9D9");
     public static readonly IconPalette LightTheme = new(
         ColorTranslator.FromHtml("#FFFFFF"),
@@ -37,10 +38,15 @@ public static class RateLimitIconRenderer
     }
 
     [SupportedOSPlatform("windows")]
-    public static Bitmap RenderBitmap(UsageState state, int size, IconTheme theme = IconTheme.Light, Color? unusedCircleColor = null)
+    public static Bitmap RenderBitmap(
+        UsageState state,
+        int size,
+        IconTheme theme = IconTheme.Light,
+        Color? unusedCircleColor = null,
+        DateTimeOffset? now = null)
     {
         var renderSize = size * SupersamplingScale;
-        using var supersampled = RenderBitmapAtSize(state, renderSize, theme, unusedCircleColor ?? Color.Transparent);
+        using var supersampled = RenderBitmapAtSize(state, renderSize, theme, unusedCircleColor ?? Color.Transparent, now);
 
         var bitmap = new Bitmap(size, size, PixelFormat.Format32bppArgb);
         using var graphics = Graphics.FromImage(bitmap);
@@ -55,7 +61,12 @@ public static class RateLimitIconRenderer
     }
 
     [SupportedOSPlatform("windows")]
-    private static Bitmap RenderBitmapAtSize(UsageState state, int size, IconTheme theme, Color unusedCircleColor)
+    private static Bitmap RenderBitmapAtSize(
+        UsageState state,
+        int size,
+        IconTheme theme,
+        Color unusedCircleColor,
+        DateTimeOffset? now)
     {
         var bitmap = new Bitmap(size, size, PixelFormat.Format32bppArgb);
         using var graphics = Graphics.FromImage(bitmap);
@@ -66,14 +77,26 @@ public static class RateLimitIconRenderer
 
         var outerUsed = state.HasError ? 0 : state.Week.UsedPercent;
         var innerUsed = state.HasError ? 0 : state.FiveHour.UsedPercent;
-        DrawRings(graphics, size, outerUsed, innerUsed, PaletteFor(theme), unusedCircleColor);
+        DrawRings(
+            graphics,
+            size,
+            outerUsed,
+            innerUsed,
+            state.HasError ? null : state.Week.ResetAt,
+            now,
+            PaletteFor(theme),
+            unusedCircleColor);
         return bitmap;
     }
 
     [SupportedOSPlatform("windows")]
-    public static Icon RenderIcon(UsageState state, int size = 32, IconTheme theme = IconTheme.Light)
+    public static Icon RenderIcon(
+        UsageState state,
+        int size = 32,
+        IconTheme theme = IconTheme.Light,
+        DateTimeOffset? now = null)
     {
-        using var bitmap = RenderBitmap(state, size, theme);
+        using var bitmap = RenderBitmap(state, size, theme, now: now ?? DateTimeOffset.Now);
         var handle = bitmap.GetHicon();
         try
         {
@@ -92,6 +115,8 @@ public static class RateLimitIconRenderer
         int canvasSize,
         double outerUsedPercent,
         double innerUsedPercent,
+        DateTimeOffset? weekResetAt,
+        DateTimeOffset? now,
         IconPalette palette,
         Color unusedCircleColor)
     {
@@ -102,6 +127,11 @@ public static class RateLimitIconRenderer
 
         DrawPieDisc(graphics, outerRect, OuterRingColor, outerUsedPercent, unusedCircleColor);
         DrawPieDisc(graphics, innerRect, palette.InnerRingColor, innerUsedPercent, unusedCircleColor);
+
+        if (weekResetAt.HasValue && now.HasValue)
+        {
+            DrawWeekProgressNeedle(graphics, canvasSize, outerRect, weekResetAt.Value, now.Value);
+        }
     }
 
     [SupportedOSPlatform("windows")]
@@ -120,6 +150,34 @@ public static class RateLimitIconRenderer
         {
             graphics.FillPie(usedBrush, rect, -90, sweep);
         }
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static void DrawWeekProgressNeedle(
+        Graphics graphics,
+        int canvasSize,
+        RectangleF outerRect,
+        DateTimeOffset weekResetAt,
+        DateTimeOffset now)
+    {
+        const double weekWindowDays = 7d;
+        var weekStartAt = weekResetAt.AddDays(-weekWindowDays);
+        var elapsed = now - weekStartAt;
+        var total = weekResetAt - weekStartAt;
+        var progress = Math.Clamp(elapsed.TotalMilliseconds / total.TotalMilliseconds, 0d, 1d);
+        var angleRadians = (-90d + (progress * 360d)) * Math.PI / 180d;
+        var center = new PointF(outerRect.Left + (outerRect.Width / 2f), outerRect.Top + (outerRect.Height / 2f));
+        var outerRadius = outerRect.Width / 2f;
+        var end = new PointF(
+            center.X + ((float)Math.Cos(angleRadians) * outerRadius),
+            center.Y + ((float)Math.Sin(angleRadians) * outerRadius));
+
+        using var pen = new Pen(WeekProgressNeedleColor, Math.Max(12f, canvasSize * 0.026f))
+        {
+            StartCap = LineCap.Round,
+            EndCap = LineCap.Round
+        };
+        graphics.DrawLine(pen, center, end);
     }
 
     private static RectangleF CenteredRect(int canvasSize, float diameter)

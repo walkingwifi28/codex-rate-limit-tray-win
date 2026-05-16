@@ -98,11 +98,98 @@ public sealed class IconRendererTests
         Assert.InRange(partiallyTransparentPixels, 500, int.MaxValue);
     }
 
+    [Fact]
+    public void Renderer_draws_bright_red_week_progress_needle_from_center_to_outer_disc()
+    {
+        var resetAt = new DateTimeOffset(2026, 5, 18, 0, 0, 0, TimeSpan.Zero);
+        var halfwayToReset = resetAt.AddDays(-3.5);
+        var state = UsageState.Success(
+            new UsageWindow(0, resetAt),
+            new UsageWindow(0, resetAt));
+
+        using var bitmap = RateLimitIconRenderer.RenderBitmap(state, 314, IconTheme.Light, now: halfwayToReset);
+
+        Assert.Equal(ColorTranslator.FromHtml("#FF0000"), RateLimitIconRenderer.WeekProgressNeedleColor);
+        AssertRedNeedlePixel(bitmap.GetPixel(157, 157));
+        AssertRedNeedlePixel(bitmap.GetPixel(157, 300));
+    }
+
+    [Fact]
+    public void RenderIcon_draws_week_progress_needle_for_tray_icon()
+    {
+        var resetAt = new DateTimeOffset(2026, 5, 18, 0, 0, 0, TimeSpan.Zero);
+        var halfwayToReset = resetAt.AddDays(-3.5);
+        var state = UsageState.Success(
+            new UsageWindow(0, resetAt),
+            new UsageWindow(0, resetAt));
+
+        using var icon = RateLimitIconRenderer.RenderIcon(state, 32, IconTheme.Light, halfwayToReset);
+        using var bitmap = icon.ToBitmap();
+
+        Assert.InRange(CountRedDominantPixels(bitmap), 8, int.MaxValue);
+    }
+
+    [Fact]
+    public void RenderIcon_draws_thick_week_progress_needle_for_tray_icon()
+    {
+        var resetAt = new DateTimeOffset(2026, 5, 18, 0, 0, 0, TimeSpan.Zero);
+        var halfwayToReset = resetAt.AddDays(-3.5);
+        var state = UsageState.Success(
+            new UsageWindow(0, resetAt),
+            new UsageWindow(0, resetAt));
+
+        using var icon = RateLimitIconRenderer.RenderIcon(state, 32, IconTheme.Light, halfwayToReset);
+        using var bitmap = icon.ToBitmap();
+
+        Assert.InRange(CountRedDominantPixelsInRow(bitmap, 24), 3, int.MaxValue);
+    }
+
     private static void AssertColorNear(Color expected, Color actual)
     {
         Assert.InRange(Math.Abs(expected.R - actual.R), 0, 4);
         Assert.InRange(Math.Abs(expected.G - actual.G), 0, 4);
         Assert.InRange(Math.Abs(expected.B - actual.B), 0, 4);
         Assert.InRange(actual.A, 250, 255);
+    }
+
+    private static void AssertRedNeedlePixel(Color actual)
+    {
+        Assert.InRange(actual.R, 220, 255);
+        Assert.InRange(actual.G, 0, 90);
+        Assert.InRange(actual.B, 0, 90);
+        Assert.InRange(actual.A, 240, 255);
+    }
+
+    private static int CountRedDominantPixels(Bitmap bitmap)
+    {
+        var count = 0;
+        for (var y = 0; y < bitmap.Height; y++)
+        {
+            for (var x = 0; x < bitmap.Width; x++)
+            {
+                var pixel = bitmap.GetPixel(x, y);
+                if (pixel.A > 0 && pixel.R > pixel.G + 50 && pixel.R > pixel.B + 50)
+                {
+                    count++;
+                }
+            }
+        }
+
+        return count;
+    }
+
+    private static int CountRedDominantPixelsInRow(Bitmap bitmap, int y)
+    {
+        var count = 0;
+        for (var x = 0; x < bitmap.Width; x++)
+        {
+            var pixel = bitmap.GetPixel(x, y);
+            if (pixel.A > 0 && pixel.R > pixel.G + 50 && pixel.R > pixel.B + 50)
+            {
+                count++;
+            }
+        }
+
+        return count;
     }
 }
