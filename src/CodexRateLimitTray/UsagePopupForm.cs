@@ -45,7 +45,7 @@ internal sealed class UsagePopupForm : Form
         ApplyTheme(theme);
 
         _graph.Image?.Dispose();
-        _graph.Image = RateLimitIconRenderer.RenderBitmap(state, 124, theme);
+        _graph.Image = RateLimitIconRenderer.RenderBitmap(state, 124, theme, now: DateTimeOffset.Now);
 
         if (state.HasError)
         {
