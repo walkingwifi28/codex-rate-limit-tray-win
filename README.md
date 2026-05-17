@@ -1,4 +1,4 @@
-# Codexレート制限トレイ
+# Codex レート制限
 
 <p align="center">
   <img src="https://img.shields.io/badge/.NET-8-512BD4?logo=dotnet&logoColor=white" alt=".NET 8" />
