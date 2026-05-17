@@ -6,9 +6,19 @@ internal static class AppFonts
 {
     public static Font Create(float size, FontStyle style = FontStyle.Regular)
     {
+        return Create(AppTypography.FontFamilyName, size, style);
+    }
+
+    public static Font CreateAligned(float size, FontStyle style = FontStyle.Regular)
+    {
+        return Create(AppTypography.AlignedFontFamilyName, size, style);
+    }
+
+    private static Font Create(string familyName, float size, FontStyle style)
+    {
         try
         {
-            return new Font(AppTypography.FontFamilyName, size, style, GraphicsUnit.Point);
+            return new Font(familyName, size, style, GraphicsUnit.Point);
         }
         catch (ArgumentException)
         {

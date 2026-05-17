@@ -1,4 +1,5 @@
 using CodexRateLimitTray.Core;
+using System.Globalization;
 
 namespace CodexRateLimitTray;
 
@@ -7,11 +8,18 @@ internal sealed class UsagePopupForm : Form
     private const int PopupWidth = 260;
     private const int HorizontalPadding = 10;
     private const int LabelWidth = PopupWidth - (HorizontalPadding * 2);
+    private static readonly int[] UsageColumnLefts = [12, 60, 78, 150, 198];
+    private static readonly int[] UsageColumnWidths = [46, 12, 70, 46, 48];
 
     private readonly Label _title = new();
     private readonly PictureBox _graph = new();
-    private readonly Label _fiveHour = new();
-    private readonly Label _week = new();
+    private readonly Label[][] _usageRows =
+    [
+        CreateUsageRow(),
+        CreateUsageRow()
+    ];
+    private readonly Label _errorLine1 = new();
+    private readonly Label _errorLine2 = new();
 
     public UsagePopupForm()
     {
@@ -33,10 +41,16 @@ internal sealed class UsagePopupForm : Form
         _graph.SizeMode = PictureBoxSizeMode.CenterImage;
         _graph.Location = new Point((ClientSize.Width - _graph.Width) / 2, 40);
 
-        ConfigureLabel(_fiveHour, 192);
-        ConfigureLabel(_week, 220);
+        ConfigureUsageRow(_usageRows[0], 192);
+        ConfigureUsageRow(_usageRows[1], 220);
+        ConfigureFullLine(_errorLine1, 192);
+        ConfigureFullLine(_errorLine2, 220);
+        _errorLine1.Visible = false;
+        _errorLine2.Visible = false;
 
-        Controls.AddRange(new Control[] { _title, _graph, _fiveHour, _week });
+        Controls.AddRange(new Control[] { _title, _graph });
+        Controls.AddRange(_usageRows.SelectMany(row => row).Cast<Control>().ToArray());
+        Controls.AddRange(new Control[] { _errorLine1, _errorLine2 });
         Deactivate += (_, _) => Hide();
     }
 
@@ -49,14 +63,19 @@ internal sealed class UsagePopupForm : Form
 
         if (state.HasError)
         {
-            _fiveHour.Text = "取得できません";
-            _week.Text = state.ErrorMessage ?? "不明なエラー";
+            SetUsageRowsVisible(false);
+            _errorLine1.Visible = true;
+            _errorLine2.Visible = true;
+            _errorLine1.Text = "取得できません";
+            _errorLine2.Text = state.ErrorMessage ?? "不明なエラー";
             return;
         }
 
-        var lines = UsageDisplayFormatter.FormatUsageLines(state);
-        _fiveHour.Text = lines.FiveHour;
-        _week.Text = lines.Week;
+        _errorLine1.Visible = false;
+        _errorLine2.Visible = false;
+        SetUsageRowsVisible(true);
+        SetUsageRow(_usageRows[0], "5時間", state.FiveHour.RemainingText, string.Empty, state.FiveHour.ResetText);
+        SetUsageRow(_usageRows[1], "週", state.Week.RemainingText, state.Week.ResetAt.ToString("MM/dd", CultureInfo.InvariantCulture), state.Week.ResetText);
     }
 
     public void ShowNearCursor()
@@ -76,20 +95,67 @@ internal sealed class UsagePopupForm : Form
             _graph.Image?.Dispose();
             _title.Dispose();
             _graph.Dispose();
-            _fiveHour.Dispose();
-            _week.Dispose();
+            foreach (var label in _usageRows.SelectMany(row => row))
+            {
+                label.Dispose();
+            }
+
+            _errorLine1.Dispose();
+            _errorLine2.Dispose();
         }
 
         base.Dispose(disposing);
     }
 
-    private static void ConfigureLabel(Label label, int top)
+    private static Label[] CreateUsageRow()
+    {
+        return
+        [
+            new Label(),
+            new Label(),
+            new Label(),
+            new Label(),
+            new Label()
+        ];
+    }
+
+    private static void ConfigureUsageRow(Label[] row, int top)
+    {
+        for (var i = 0; i < row.Length; i++)
+        {
+            var label = row[i];
+            label.AutoSize = false;
+            label.TextAlign = ContentAlignment.MiddleLeft;
+            label.Font = AppFonts.CreateAligned(10f);
+            label.Location = new Point(UsageColumnLefts[i], top);
+            label.Size = new Size(UsageColumnWidths[i], 22);
+        }
+    }
+
+    private static void ConfigureFullLine(Label label, int top)
     {
         label.AutoSize = false;
-        label.TextAlign = ContentAlignment.MiddleCenter;
-        label.Font = AppFonts.Create(10f);
+        label.TextAlign = ContentAlignment.MiddleLeft;
+        label.Font = AppFonts.CreateAligned(10f);
         label.Location = new Point(HorizontalPadding, top);
         label.Size = new Size(LabelWidth, 22);
+    }
+
+    private static void SetUsageRow(Label[] row, string label, string remainingText, string resetDateText, string resetTimeText)
+    {
+        row[0].Text = label;
+        row[1].Text = ":";
+        row[2].Text = $"残り {remainingText}%";
+        row[3].Text = resetDateText;
+        row[4].Text = resetTimeText;
+    }
+
+    private void SetUsageRowsVisible(bool visible)
+    {
+        foreach (var label in _usageRows.SelectMany(row => row))
+        {
+            label.Visible = visible;
+        }
     }
 
     private void ApplyTheme(IconTheme theme)
@@ -99,7 +165,12 @@ internal sealed class UsagePopupForm : Form
         BackColor = palette.BackgroundColor;
         _graph.BackColor = palette.BackgroundColor;
         _title.ForeColor = palette.TextColor;
-        _fiveHour.ForeColor = palette.TextColor;
-        _week.ForeColor = palette.TextColor;
+        foreach (var label in _usageRows.SelectMany(row => row))
+        {
+            label.ForeColor = palette.TextColor;
+        }
+
+        _errorLine1.ForeColor = palette.TextColor;
+        _errorLine2.ForeColor = palette.TextColor;
     }
 }
