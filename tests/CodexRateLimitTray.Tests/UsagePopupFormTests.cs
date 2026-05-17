@@ -47,20 +47,26 @@ public sealed class UsagePopupFormTests
         var labels = LabelsIn(form)
             .Where(label => label.Text != UsageDisplayFormatter.Title)
             .Where(label => label.Top is 192 or 220)
-            .Where(label => label.Left is 12 or 58 or 69 or 146 or 204)
+            .Where(label => label.Left is 12 or 58 or 69 or 103 or 146 or 204)
             .ToArray();
 
         Assert.Contains(labels, label => label.Text == "5時間");
         Assert.Contains(labels, label => label.Text == "週");
-        Assert.Contains(labels, label => label.Text == "残り 94%");
-        Assert.Contains(labels, label => label.Text == "残り 99%");
+        AssertColumnAligned(labels, "残り", 2);
+        Assert.Contains(labels, label => label.Text == "94%");
+        Assert.Contains(labels, label => label.Text == "99%");
         Assert.Contains(labels, label => label.Text == "05/24");
         Assert.Contains(labels, label => label.Text == "13:48");
-        AssertColumnAligned(labels.Where(label => label.Text is "残り 94%" or "残り 99%"), 2);
+        Assert.All(labels.Where(label => label.Text is "94%" or "99%"), label =>
+        {
+            Assert.Equal(ContentAlignment.MiddleRight, label.TextAlign);
+        });
+        AssertColumnAligned(labels.Where(label => label.Text is "94%" or "99%"), 2);
         AssertColumnAligned(labels.Where(label => label.Text is "" or "05/24"), 2);
         AssertColumnAligned(labels.Where(label => label.Text is "18:48" or "13:48"), 2);
         AssertColumnLeft(labels, ":", 58);
-        AssertColumnLeft(labels.Where(label => label.Text is "残り 94%" or "残り 99%"), 69);
+        AssertColumnLeft(labels, "残り", 69);
+        AssertColumnLeft(labels.Where(label => label.Text is "94%" or "99%"), 103);
         AssertColumnLeft(labels.Where(label => label.Text is "" or "05/24"), 146);
         AssertColumnLeft(labels.Where(label => label.Text is "18:48" or "13:48"), 204);
     }
@@ -78,7 +84,7 @@ public sealed class UsagePopupFormTests
         var labels = LabelsIn(form)
             .Where(label => !string.IsNullOrEmpty(label.Text))
             .Where(label => label.Top is 192 or 220)
-            .Where(label => label.Left is 12 or 58 or 69 or 146 or 204)
+            .Where(label => label.Left is 12 or 58 or 69 or 103 or 146 or 204)
             .ToArray();
 
         Assert.All(labels, label =>

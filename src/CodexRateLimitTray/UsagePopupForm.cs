@@ -8,8 +8,9 @@ internal sealed class UsagePopupForm : Form
     private const int PopupWidth = 260;
     private const int HorizontalPadding = 10;
     private const int LabelWidth = PopupWidth - (HorizontalPadding * 2);
-    private static readonly int[] UsageColumnLefts = [12, 58, 69, 146, 204];
-    private static readonly int[] UsageColumnWidths = [46, 11, 74, 58, 53];
+    private const int PercentColumnIndex = 3;
+    private static readonly int[] UsageColumnLefts = [12, 58, 69, 103, 146, 204];
+    private static readonly int[] UsageColumnWidths = [46, 11, 34, 43, 58, 53];
 
     private readonly Label _title = new();
     private readonly PictureBox _graph = new();
@@ -115,6 +116,7 @@ internal sealed class UsagePopupForm : Form
             new Label(),
             new Label(),
             new Label(),
+            new Label(),
             new Label()
         ];
     }
@@ -130,6 +132,8 @@ internal sealed class UsagePopupForm : Form
             label.Location = new Point(UsageColumnLefts[i], top);
             label.Size = new Size(UsageColumnWidths[i], 22);
         }
+
+        row[PercentColumnIndex].TextAlign = ContentAlignment.MiddleRight;
     }
 
     private static void ConfigureFullLine(Label label, int top)
@@ -145,9 +149,10 @@ internal sealed class UsagePopupForm : Form
     {
         row[0].Text = label;
         row[1].Text = ":";
-        row[2].Text = $"残り {remainingText}%";
-        row[3].Text = resetDateText;
-        row[4].Text = resetTimeText;
+        row[2].Text = "残り";
+        row[3].Text = $"{remainingText}%";
+        row[4].Text = resetDateText;
+        row[5].Text = resetTimeText;
     }
 
     private void SetUsageRowsVisible(bool visible)
