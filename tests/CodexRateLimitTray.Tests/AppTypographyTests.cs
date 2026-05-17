@@ -9,4 +9,10 @@ public sealed class AppTypographyTests
     {
         Assert.Equal("BIZ UDPGothic", AppTypography.FontFamilyName);
     }
+
+    [Fact]
+    public void Aligned_font_family_is_biz_ud_gothic()
+    {
+        Assert.Equal("BIZ UDGothic", AppTypography.AlignedFontFamilyName);
+    }
 }

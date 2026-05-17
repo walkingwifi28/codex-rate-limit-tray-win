@@ -152,10 +152,9 @@ internal sealed class TrayAppContext : ApplicationContext
 
     private static string ToNotifyIconText(UsageState state)
     {
-        var lines = state.HasError ? null : UsageDisplayFormatter.FormatUsageLines(state);
         var text = state.HasError
             ? $"Codex レート制限{Environment.NewLine}取得できません{Environment.NewLine}{state.ErrorMessage}"
-            : $"Codex レート制限{Environment.NewLine}{lines!.FiveHour}{Environment.NewLine}{lines.Week}";
+            : UsageDisplayFormatter.FormatTooltipText(state);
 
         return text.Length <= 63 ? text : text[..63];
     }
