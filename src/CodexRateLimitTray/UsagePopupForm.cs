@@ -8,8 +8,8 @@ internal sealed class UsagePopupForm : Form
     private const int PopupWidth = 260;
     private const int HorizontalPadding = 10;
     private const int LabelWidth = PopupWidth - (HorizontalPadding * 2);
-    private static readonly int[] UsageColumnLefts = [12, 60, 78, 150, 198];
-    private static readonly int[] UsageColumnWidths = [46, 12, 70, 46, 48];
+    private static readonly int[] UsageColumnLefts = [12, 58, 69, 146, 204];
+    private static readonly int[] UsageColumnWidths = [46, 11, 74, 58, 53];
 
     private readonly Label _title = new();
     private readonly PictureBox _graph = new();
@@ -126,7 +126,7 @@ internal sealed class UsagePopupForm : Form
             var label = row[i];
             label.AutoSize = false;
             label.TextAlign = ContentAlignment.MiddleLeft;
-            label.Font = AppFonts.CreateAligned(10f);
+            label.Font = AppFonts.Create(10f);
             label.Location = new Point(UsageColumnLefts[i], top);
             label.Size = new Size(UsageColumnWidths[i], 22);
         }
@@ -136,7 +136,7 @@ internal sealed class UsagePopupForm : Form
     {
         label.AutoSize = false;
         label.TextAlign = ContentAlignment.MiddleLeft;
-        label.Font = AppFonts.CreateAligned(10f);
+        label.Font = AppFonts.Create(10f);
         label.Location = new Point(HorizontalPadding, top);
         label.Size = new Size(LabelWidth, 22);
     }
