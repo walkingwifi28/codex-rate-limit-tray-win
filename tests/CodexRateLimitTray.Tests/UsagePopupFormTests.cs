@@ -47,7 +47,7 @@ public sealed class UsagePopupFormTests
         var labels = LabelsIn(form)
             .Where(label => label.Text != UsageDisplayFormatter.Title)
             .Where(label => label.Top is 192 or 220)
-            .Where(label => label.Left is 12 or 58 or 69 or 103 or 146 or 204)
+            .Where(label => label.Left is 12 or 58 or 69 or 103 or 155 or 213)
             .ToArray();
 
         Assert.Contains(labels, label => label.Text == "5時間");
@@ -67,8 +67,8 @@ public sealed class UsagePopupFormTests
         AssertColumnLeft(labels, ":", 58);
         AssertColumnLeft(labels, "残り", 69);
         AssertColumnLeft(labels.Where(label => label.Text is "94%" or "99%"), 103);
-        AssertColumnLeft(labels.Where(label => label.Text is "" or "05/24"), 146);
-        AssertColumnLeft(labels.Where(label => label.Text is "18:48" or "13:48"), 204);
+        AssertColumnLeft(labels.Where(label => label.Text is "" or "05/24"), 155);
+        AssertColumnLeft(labels.Where(label => label.Text is "18:48" or "13:48"), 213);
     }
 
     [Fact]
@@ -84,10 +84,35 @@ public sealed class UsagePopupFormTests
         var labels = LabelsIn(form)
             .Where(label => !string.IsNullOrEmpty(label.Text))
             .Where(label => label.Top is 192 or 220)
-            .Where(label => label.Left is 12 or 58 or 69 or 103 or 146 or 204)
+            .Where(label => label.Left is 12 or 58 or 69 or 103 or 155 or 213)
             .ToArray();
 
         Assert.All(labels, label =>
+        {
+            var measuredWidth = TextRenderer.MeasureText(label.Text, label.Font).Width;
+
+            Assert.True(
+                measuredWidth <= label.Width,
+                $"'{label.Text}' needs {measuredWidth}px but label width is {label.Width}px.");
+        });
+    }
+
+    [Fact]
+    public void Usage_labels_are_wide_enough_for_full_remaining_percent()
+    {
+        using var form = new UsagePopupForm();
+        var state = UsageState.Success(
+            new UsageWindow(0, new DateTimeOffset(2026, 5, 17, 18, 48, 0, TimeSpan.Zero)),
+            new UsageWindow(0, new DateTimeOffset(2026, 5, 24, 13, 48, 0, TimeSpan.Zero)));
+
+        form.UpdateState(state, IconTheme.Dark);
+
+        var fullPercentLabels = LabelsIn(form)
+            .Where(label => label.Text == "100%")
+            .ToArray();
+
+        Assert.Equal(2, fullPercentLabels.Length);
+        Assert.All(fullPercentLabels, label =>
         {
             var measuredWidth = TextRenderer.MeasureText(label.Text, label.Font).Width;
 
