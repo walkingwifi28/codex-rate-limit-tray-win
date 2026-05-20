@@ -122,6 +122,36 @@ public sealed class UsagePopupFormTests
         });
     }
 
+    [Fact]
+    public void Five_hour_reset_time_column_fits_every_time_of_day_inside_popup()
+    {
+        using var form = new UsagePopupForm();
+        var state = UsageState.Success(
+            new UsageWindow(0, new DateTimeOffset(2026, 5, 17, 23, 59, 0, TimeSpan.Zero)),
+            new UsageWindow(0, new DateTimeOffset(2026, 5, 24, 13, 48, 0, TimeSpan.Zero)));
+
+        form.UpdateState(state, IconTheme.Dark);
+
+        var timeLabel = LabelsIn(form).Single(label => label.Text == "23:59");
+
+        Assert.True(
+            timeLabel.Right <= form.ClientSize.Width - 10,
+            $"Time column right edge is {timeLabel.Right}px but popup content ends at {form.ClientSize.Width - 10}px.");
+
+        for (var hour = 0; hour < 24; hour++)
+        {
+            for (var minute = 0; minute < 60; minute++)
+            {
+                var text = $"{hour:00}:{minute:00}";
+                var measuredWidth = TextRenderer.MeasureText(text, timeLabel.Font).Width;
+
+                Assert.True(
+                    measuredWidth <= timeLabel.Width,
+                    $"'{text}' needs {measuredWidth}px but time column width is {timeLabel.Width}px.");
+            }
+        }
+    }
+
     private static IEnumerable<Label> LabelsIn(Control control)
     {
         foreach (Control child in control.Controls)
