@@ -9,8 +9,8 @@ internal sealed class UsagePopupForm : Form
     private const int HorizontalPadding = 10;
     private const int LabelWidth = PopupWidth - (HorizontalPadding * 2);
     private const int PercentColumnIndex = 3;
-    private static readonly int[] UsageColumnLefts = [12, 58, 69, 103, 155, 213];
-    private static readonly int[] UsageColumnWidths = [46, 11, 34, 52, 58, 58];
+    private static readonly int[] UsageColumnLefts = [12, 58, 70, 104, 156, 214];
+    private static readonly int[] UsageColumnWidths = [46, 12, 34, 52, 58, 57];
 
     private readonly Label _title = new();
     private readonly PictureBox _graph = new();
