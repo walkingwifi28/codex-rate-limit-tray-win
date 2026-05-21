@@ -34,21 +34,11 @@ winget manifest の `InstallerSha256` はリリースで生成された `.sha256
 
 ### Code signing
 
-このプロジェクトは OSS として SignPath Foundation の無料コード署名を利用する方針です。
+このプロジェクトの GitHub Releases で公開する installer は、現時点では未署名です。
 
-Free code signing provided by SignPath.io, certificate by SignPath Foundation.
+未署名 installer のため、Windows Defender SmartScreen で警告が表示される場合があります。配布物の改ざん確認には、GitHub Release に添付される `.sha256` と winget manifest の `InstallerSha256` を利用します。
 
-署名ポリシーは [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md) に記載しています。SignPath Foundation 申請用の情報は [docs/signpath-application.md](docs/signpath-application.md) にまとめています。
-
-GitHub Actions の release workflow は、未署名インストーラを公開せず、SignPath で署名された installer だけを GitHub Release に添付します。SignPath 承認後、次の repository variables と secret を設定します。
-
-- `SIGNPATH_ORGANIZATION_ID`
-- `SIGNPATH_PROJECT_SLUG`
-- `SIGNPATH_SIGNING_POLICY_SLUG`
-- `SIGNPATH_ARTIFACT_CONFIGURATION_SLUG`
-- `SIGNPATH_API_TOKEN` repository secret
-
-これらが未設定の場合、release workflow は失敗します。これは未署名の公式リリースを防ぐためです。
+配布方針は [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md) に記載しています。将来コード署名証明書を利用できる状態になった場合は、release workflow を署名済み installer の公開に戻す予定です。
 
 ## License
 
