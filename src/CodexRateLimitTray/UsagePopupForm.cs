@@ -25,6 +25,7 @@ internal sealed class UsagePopupForm : Form
     ];
     private readonly Label _errorLine1 = new();
     private readonly Label _errorLine2 = new();
+    private bool _isDisposing;
 
     internal bool IsPinned => _pinButton.IsPinned;
 
@@ -110,6 +111,7 @@ internal sealed class UsagePopupForm : Form
     {
         if (disposing)
         {
+            _isDisposing = true;
             _graph.Image?.Dispose();
             _title.Dispose();
             _pinButton.Dispose();
@@ -124,6 +126,16 @@ internal sealed class UsagePopupForm : Form
         }
 
         base.Dispose(disposing);
+    }
+
+    protected override void SetVisibleCore(bool value)
+    {
+        if (!value && IsPinned && !_isDisposing)
+        {
+            return;
+        }
+
+        base.SetVisibleCore(value);
     }
 
     private static Label[] CreateUsageRow()

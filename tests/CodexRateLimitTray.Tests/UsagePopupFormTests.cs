@@ -94,6 +94,33 @@ public sealed class UsagePopupFormTests
     }
 
     [Fact]
+    public void Popup_ignores_hide_requests_while_pinned()
+    {
+        using var form = new UsagePopupForm();
+        var pinButton = PinButtonIn(form);
+        form.Show();
+        pinButton.PerformClick();
+
+        form.Hide();
+
+        Assert.True(form.Visible);
+    }
+
+    [Fact]
+    public void Popup_stays_visible_when_state_refreshes_while_pinned()
+    {
+        using var form = new UsagePopupForm();
+        var pinButton = PinButtonIn(form);
+        form.Show();
+        pinButton.PerformClick();
+
+        form.UpdateState(LoadedState, IconTheme.Dark);
+
+        Assert.True(form.IsPinned);
+        Assert.True(form.Visible);
+    }
+
+    [Fact]
     public void Popup_labels_use_primary_ui_font_without_centered_usage_text()
     {
         using var form = new UsagePopupForm();

@@ -28,6 +28,7 @@ internal sealed class TrayAppContext : ApplicationContext
         _notifyIcon.ContextMenuStrip = _menu;
         _notifyIcon.MouseUp += OnNotifyIconMouseUp;
         _notifyIcon.Visible = true;
+        _popup.VisibleChanged += OnPopupVisibleChanged;
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
 
         UpdateTrayVisual();
@@ -43,6 +44,7 @@ internal sealed class TrayAppContext : ApplicationContext
         {
             _isDisposed = true;
             _timer.Dispose();
+            _popup.VisibleChanged -= OnPopupVisibleChanged;
             _popup.Dispose();
             SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
             _notifyIcon.Visible = false;
@@ -114,6 +116,16 @@ internal sealed class TrayAppContext : ApplicationContext
         {
             RunOnUiThread(UpdateTrayVisual);
         }
+    }
+
+    private void OnPopupVisibleChanged(object? sender, EventArgs e)
+    {
+        if (_isDisposed)
+        {
+            return;
+        }
+
+        _timer.Interval = (int)RefreshSchedule.ForPopupVisibility(_popup.Visible).TotalMilliseconds;
     }
 
     private void RunOnUiThread(Action action)
