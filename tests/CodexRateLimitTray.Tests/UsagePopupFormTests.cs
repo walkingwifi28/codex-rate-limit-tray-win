@@ -1,18 +1,96 @@
 using CodexRateLimitTray;
 using CodexRateLimitTray.Core;
 using System.Drawing;
+using System.Reflection;
 using System.Windows.Forms;
 
 namespace CodexRateLimitTray.Tests;
 
 public sealed class UsagePopupFormTests
 {
+    private static readonly UsageState LoadedState = UsageState.Success(
+        new UsageWindow(6, new DateTimeOffset(2026, 5, 17, 18, 48, 0, TimeSpan.Zero)),
+        new UsageWindow(1, new DateTimeOffset(2026, 5, 24, 13, 48, 0, TimeSpan.Zero)));
+
     [Fact]
     public void Popup_removes_standard_title_bar()
     {
         using var form = new UsagePopupForm();
 
         Assert.Equal(FormBorderStyle.None, form.FormBorderStyle);
+    }
+
+    [Fact]
+    public void Pin_button_starts_unpinned_at_top_right_and_uses_theme_text_color()
+    {
+        using var form = new UsagePopupForm();
+
+        form.UpdateState(LoadedState, IconTheme.Dark);
+
+        var pinButton = PinButtonIn(form);
+        Assert.False(form.IsPinned);
+        Assert.Equal(new Point(form.ClientSize.Width - pinButton.Width - 10, 10), pinButton.Location);
+        Assert.Equal(RateLimitIconRenderer.DarkTheme.TextColor, pinButton.ForeColor);
+        Assert.Equal("ピン止め", pinButton.AccessibleName);
+        Assert.Contains("無効", pinButton.AccessibleDescription);
+    }
+
+    [Fact]
+    public void Pin_button_uses_compact_icon_size()
+    {
+        using var form = new UsagePopupForm();
+
+        var pinButton = PinButtonIn(form);
+
+        Assert.Equal(new Size(20, 20), pinButton.Size);
+    }
+
+    [Fact]
+    public void Pin_button_does_not_overlap_title_label()
+    {
+        using var form = new UsagePopupForm();
+
+        var title = LabelsIn(form).Single(label => label.Text == UsageDisplayFormatter.Title);
+        var pinButton = PinButtonIn(form);
+
+        Assert.False(title.Bounds.IntersectsWith(pinButton.Bounds));
+    }
+
+    [Fact]
+    public void Clicking_pin_button_toggles_pinned_state_and_accessible_description()
+    {
+        using var form = new UsagePopupForm();
+        var pinButton = PinButtonIn(form);
+        form.Show();
+
+        pinButton.PerformClick();
+
+        Assert.True(form.IsPinned);
+        Assert.Contains("有効", pinButton.AccessibleDescription);
+
+        pinButton.PerformClick();
+
+        Assert.False(form.IsPinned);
+        Assert.Contains("無効", pinButton.AccessibleDescription);
+    }
+
+    [Fact]
+    public void Popup_ignores_deactivate_while_pinned()
+    {
+        using var form = new UsagePopupForm();
+        var pinButton = PinButtonIn(form);
+        form.Show();
+        Assert.True(form.Visible);
+
+        pinButton.PerformClick();
+        InvokeDeactivate(form);
+
+        Assert.True(form.Visible);
+
+        pinButton.PerformClick();
+        InvokeDeactivate(form);
+
+        Assert.False(form.Visible);
     }
 
     [Fact]
@@ -167,6 +245,24 @@ public sealed class UsagePopupFormTests
                 yield return nested;
             }
         }
+    }
+
+    private static Button PinButtonIn(Control control)
+    {
+        var button = control.Controls
+            .Cast<Control>()
+            .OfType<Button>()
+            .SingleOrDefault(child => child.Name == "PinButton");
+
+        Assert.NotNull(button);
+        return button;
+    }
+
+    private static void InvokeDeactivate(Form form)
+    {
+        typeof(Form)
+            .GetMethod("OnDeactivate", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(form, [EventArgs.Empty]);
     }
 
     private static void AssertColumnAligned(IEnumerable<Label> labels, string text, int expectedCount)
