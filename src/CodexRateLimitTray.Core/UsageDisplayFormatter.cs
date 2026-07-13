@@ -1,6 +1,6 @@
 namespace CodexRateLimitTray.Core;
 
-public sealed record UsageDisplayLines(string FiveHour, string Week);
+public sealed record UsageDisplayLines(string Week);
 
 public static class UsageDisplayFormatter
 {
@@ -11,14 +11,12 @@ public static class UsageDisplayFormatter
 
     public static UsageDisplayLines FormatUsageLines(UsageState state)
     {
-        return new UsageDisplayLines(
-            FormatLine("5時間", state.FiveHour.RemainingText, state.FiveHour.ResetText),
-            FormatLine("週", state.Week.RemainingText, state.Week.WeekResetText));
+        return new UsageDisplayLines(FormatLine("週", state.Week.RemainingText, state.Week.WeekResetText));
     }
 
     public static string FormatTooltipText(UsageState state)
     {
-        return $"Codexレート制限 : {state.FiveHour.RemainingText}% / {state.Week.RemainingText}%";
+        return $"Codexレート制限 : {state.Week.RemainingText}%";
     }
 
     private static string FormatLine(string label, string remainingText, string resetText)

@@ -26,7 +26,7 @@ public sealed class WhamUsageClientTests
         HttpRequestMessage? captured = null;
         using var http = new HttpClient(new StubHandler(new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = new StringContent("""{"rate_limit":{"primary_window":{"used_percent":1,"reset_at":1},"secondary_window":{"used_percent":2,"reset_at":2}}}""")
+            Content = new StringContent("""{"rate_limit":{"primary_window":{"used_percent":1,"reset_at":1,"limit_window_seconds":604800},"secondary_window":null}}""")
         }, request => captured = request));
         var client = new WhamUsageClient(http, TimeZoneInfo.Utc);
 
