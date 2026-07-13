@@ -32,6 +32,26 @@ dotnet publish src\CodexRateLimitTray\CodexRateLimitTray.csproj -c Release -r wi
 
 winget manifest の `InstallerSha256` はリリースで生成された `.sha256` の値に置き換えてから `winget-pkgs` に提出します。
 
+### WinGet manifest の更新
+
+`wingetcreate` を使うと、manifest の生成、SHA256 の計算、`winget-pkgs` への Pull Request 作成まで自動化できます。初回だけインストールと GitHub 認証を行います。
+
+```powershell
+winget install wingetcreate
+wingetcreate token -s
+```
+
+GitHub Release の作成後、リリースしたバージョンと installer URL を指定して実行します。
+
+```powershell
+wingetcreate update WalkingWiFi.CodexRateLimitTray `
+  -u "https://github.com/walkingwifi28/codex-rate-limit-tray-win/releases/download/v0.1.4/CodexRateLimitTray-0.1.4-win-x64-setup.exe" `
+  -v 0.1.4 `
+  --submit
+```
+
+次回以降は URL と `-v` のバージョン番号を対象のリリースに合わせて変更します。
+
 ### Code signing
 
 このプロジェクトの GitHub Releases で公開する installer は、現時点では未署名です。
