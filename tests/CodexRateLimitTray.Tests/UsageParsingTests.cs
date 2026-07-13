@@ -5,13 +5,13 @@ namespace CodexRateLimitTray.Tests;
 public sealed class UsageParsingTests
 {
     [Fact]
-    public void Parses_primary_as_five_hour_and_secondary_as_week_window()
+    public void Parses_primary_as_week_window_when_secondary_is_null()
     {
         const string json = """
         {
           "rate_limit": {
-            "primary_window": { "used_percent": 25.5, "reset_at": 1715781600 },
-            "secondary_window": { "used_percent": 80, "reset_at": 1716094800 }
+            "primary_window": { "used_percent": 80, "reset_at": 1716094800 },
+            "secondary_window": null
           }
         }
         """;
@@ -19,11 +19,8 @@ public sealed class UsageParsingTests
         var state = WhamUsageParser.Parse(json, TimeZoneInfo.Utc);
 
         Assert.False(state.HasError);
-        Assert.Equal(25.5, state.FiveHour.UsedPercent);
-        Assert.Equal(74.5, state.FiveHour.RemainingPercent);
         Assert.Equal(80, state.Week.UsedPercent);
         Assert.Equal(20, state.Week.RemainingPercent);
-        Assert.Equal(new DateTimeOffset(2024, 5, 15, 14, 0, 0, TimeSpan.Zero), state.FiveHour.ResetAt);
         Assert.Equal(new DateTimeOffset(2024, 5, 19, 5, 0, 0, TimeSpan.Zero), state.Week.ResetAt);
     }
 
@@ -31,11 +28,9 @@ public sealed class UsageParsingTests
     public void Formats_reset_times_with_local_time_patterns()
     {
         var tokyo = TimeZoneInfo.FindSystemTimeZoneById("Tokyo Standard Time");
-        var fiveHour = new UsageWindow(10, TimeZoneInfo.ConvertTime(DateTimeOffset.FromUnixTimeSeconds(1715781600), tokyo));
         var week = new UsageWindow(65, TimeZoneInfo.ConvertTime(DateTimeOffset.FromUnixTimeSeconds(1716094800), tokyo));
-        var state = UsageState.Success(fiveHour, week);
+        var state = UsageState.Success(week);
 
-        Assert.Equal("23:00", state.FiveHour.ResetText);
         Assert.Equal("05/19 14:00", state.Week.WeekResetText);
     }
 

@@ -18,11 +18,7 @@ internal sealed class UsagePopupForm : Form
     private readonly Label _title = new();
     private readonly PinIconButton _pinButton = new();
     private readonly PictureBox _graph = new();
-    private readonly Label[][] _usageRows =
-    [
-        CreateUsageRow(),
-        CreateUsageRow()
-    ];
+    private readonly Label[][] _usageRows = [CreateUsageRow()];
     private readonly Label _errorLine1 = new();
     private readonly Label _errorLine2 = new();
     private bool _isDisposing;
@@ -36,7 +32,7 @@ internal sealed class UsagePopupForm : Form
         StartPosition = FormStartPosition.Manual;
         TopMost = true;
         Padding = new Padding(12);
-        ClientSize = new Size(PopupWidth, 260);
+        ClientSize = new Size(PopupWidth, 236);
 
         _title.AutoSize = false;
         _title.Text = UsageDisplayFormatter.Title;
@@ -55,9 +51,8 @@ internal sealed class UsagePopupForm : Form
         _graph.Location = new Point((ClientSize.Width - _graph.Width) / 2, 40);
 
         ConfigureUsageRow(_usageRows[0], 192);
-        ConfigureUsageRow(_usageRows[1], 220);
         ConfigureFullLine(_errorLine1, 192);
-        ConfigureFullLine(_errorLine2, 220);
+        ConfigureFullLine(_errorLine2, 214);
         _errorLine1.Visible = false;
         _errorLine2.Visible = false;
 
@@ -93,8 +88,7 @@ internal sealed class UsagePopupForm : Form
         _errorLine1.Visible = false;
         _errorLine2.Visible = false;
         SetUsageRowsVisible(true);
-        SetUsageRow(_usageRows[0], "5時間", state.FiveHour.RemainingText, string.Empty, state.FiveHour.ResetText);
-        SetUsageRow(_usageRows[1], "週", state.Week.RemainingText, state.Week.ResetAt.ToString("MM/dd", CultureInfo.InvariantCulture), state.Week.ResetText);
+        SetUsageRow(_usageRows[0], "週", state.Week.RemainingText, state.Week.ResetAt.ToString("MM/dd", CultureInfo.InvariantCulture), state.Week.ResetText);
     }
 
     public void ShowNearCursor()

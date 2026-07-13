@@ -10,10 +10,9 @@ public static class WhamUsageParser
         {
             using var document = JsonDocument.Parse(json);
             var rateLimit = document.RootElement.GetProperty("rate_limit");
-            var primary = ReadWindow(rateLimit.GetProperty("primary_window"), localTimeZone);
-            var secondary = ReadWindow(rateLimit.GetProperty("secondary_window"), localTimeZone);
+            var week = ReadWindow(rateLimit.GetProperty("primary_window"), localTimeZone);
 
-            return UsageState.Success(primary, secondary);
+            return UsageState.Success(week);
         }
         catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException)
         {

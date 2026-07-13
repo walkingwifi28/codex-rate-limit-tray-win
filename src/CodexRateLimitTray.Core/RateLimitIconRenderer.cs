@@ -6,8 +6,7 @@ using System.Runtime.Versioning;
 
 namespace CodexRateLimitTray.Core;
 
-public sealed record RingGeometry(double OuterDiameter, double InnerDiameter);
-public sealed record IconPalette(Color BackgroundColor, Color TextColor, Color InnerRingColor);
+public sealed record IconPalette(Color BackgroundColor, Color TextColor);
 
 public enum IconTheme
 {
@@ -24,18 +23,11 @@ public static class RateLimitIconRenderer
     public static readonly Color GraphBackgroundColor = ColorTranslator.FromHtml("#D9D9D9");
     public static readonly IconPalette LightTheme = new(
         ColorTranslator.FromHtml("#FFFFFF"),
-        ColorTranslator.FromHtml("#1A1C1F"),
         ColorTranslator.FromHtml("#1A1C1F"));
 
     public static readonly IconPalette DarkTheme = new(
         ColorTranslator.FromHtml("#181818"),
-        ColorTranslator.FromHtml("#FFFFFF"),
         ColorTranslator.FromHtml("#FFFFFF"));
-
-    public static RingGeometry CalculateGeometry(double outerDiameter)
-    {
-        return new RingGeometry(outerDiameter, outerDiameter * 200d / 314d);
-    }
 
     [SupportedOSPlatform("windows")]
     public static Bitmap RenderBitmap(
@@ -46,7 +38,7 @@ public static class RateLimitIconRenderer
         DateTimeOffset? now = null)
     {
         var renderSize = size * SupersamplingScale;
-        using var supersampled = RenderBitmapAtSize(state, renderSize, theme, unusedCircleColor ?? Color.Transparent, now);
+        using var supersampled = RenderBitmapAtSize(state, renderSize, unusedCircleColor ?? Color.Transparent, now);
 
         var bitmap = new Bitmap(size, size, PixelFormat.Format32bppArgb);
         using var graphics = Graphics.FromImage(bitmap);
@@ -64,7 +56,6 @@ public static class RateLimitIconRenderer
     private static Bitmap RenderBitmapAtSize(
         UsageState state,
         int size,
-        IconTheme theme,
         Color unusedCircleColor,
         DateTimeOffset? now)
     {
@@ -75,16 +66,13 @@ public static class RateLimitIconRenderer
         graphics.SmoothingMode = SmoothingMode.HighQuality;
         graphics.Clear(Color.Transparent);
 
-        var outerUsed = state.HasError ? 0 : state.Week.UsedPercent;
-        var innerUsed = state.HasError ? 0 : state.FiveHour.UsedPercent;
+        var weekUsed = state.HasError ? 0 : state.Week.UsedPercent;
         DrawRings(
             graphics,
             size,
-            outerUsed,
-            innerUsed,
+            weekUsed,
             state.HasError ? null : state.Week.ResetAt,
             now,
-            PaletteFor(theme),
             unusedCircleColor);
         return bitmap;
     }
@@ -113,20 +101,14 @@ public static class RateLimitIconRenderer
     private static void DrawRings(
         Graphics graphics,
         int canvasSize,
-        double outerUsedPercent,
-        double innerUsedPercent,
+        double weekUsedPercent,
         DateTimeOffset? weekResetAt,
         DateTimeOffset? now,
-        IconPalette palette,
         Color unusedCircleColor)
     {
-        var geometry = CalculateGeometry(canvasSize);
+        var outerRect = CenteredRect(canvasSize, canvasSize);
 
-        var outerRect = CenteredRect(canvasSize, (float)geometry.OuterDiameter);
-        var innerRect = CenteredRect(canvasSize, (float)geometry.InnerDiameter);
-
-        DrawPieDisc(graphics, outerRect, OuterRingColor, outerUsedPercent, unusedCircleColor);
-        DrawPieDisc(graphics, innerRect, palette.InnerRingColor, innerUsedPercent, unusedCircleColor);
+        DrawPieDisc(graphics, outerRect, OuterRingColor, weekUsedPercent, unusedCircleColor);
 
         if (weekResetAt.HasValue && now.HasValue)
         {

@@ -9,7 +9,6 @@ namespace CodexRateLimitTray.Tests;
 public sealed class UsagePopupFormTests
 {
     private static readonly UsageState LoadedState = UsageState.Success(
-        new UsageWindow(6, new DateTimeOffset(2026, 5, 17, 18, 48, 0, TimeSpan.Zero)),
         new UsageWindow(1, new DateTimeOffset(2026, 5, 24, 13, 48, 0, TimeSpan.Zero)));
 
     [Fact]
@@ -121,6 +120,21 @@ public sealed class UsagePopupFormTests
     }
 
     [Fact]
+    public void Error_lines_fit_inside_popup()
+    {
+        using var form = new UsagePopupForm();
+
+        form.UpdateState(UsageState.Error(UsageErrorKind.Network, "ネットワークエラー"), IconTheme.Dark);
+
+        var errorLabels = LabelsIn(form)
+            .Where(label => label.Text is "取得できません" or "ネットワークエラー")
+            .ToArray();
+
+        Assert.Equal(2, errorLabels.Length);
+        Assert.All(errorLabels, label => Assert.InRange(label.Bottom, 0, form.ClientSize.Height));
+    }
+
+    [Fact]
     public void Popup_labels_use_primary_ui_font_without_centered_usage_text()
     {
         using var form = new UsagePopupForm();
@@ -145,36 +159,32 @@ public sealed class UsagePopupFormTests
     {
         using var form = new UsagePopupForm();
         var state = UsageState.Success(
-            new UsageWindow(6, new DateTimeOffset(2026, 5, 17, 18, 48, 0, TimeSpan.Zero)),
             new UsageWindow(1, new DateTimeOffset(2026, 5, 24, 13, 48, 0, TimeSpan.Zero)));
 
         form.UpdateState(state, IconTheme.Dark);
 
         var labels = LabelsIn(form)
             .Where(label => label.Text != UsageDisplayFormatter.Title)
-            .Where(label => label.Top is 192 or 220)
+            .Where(label => label.Top is 192)
             .Where(label => label.Left is 12 or 58 or 70 or 104 or 156 or 214)
             .ToArray();
 
-        Assert.Contains(labels, label => label.Text == "5時間");
         Assert.Contains(labels, label => label.Text == "週");
-        AssertColumnAligned(labels, "残り", 2);
-        Assert.Contains(labels, label => label.Text == "94%");
         Assert.Contains(labels, label => label.Text == "99%");
         Assert.Contains(labels, label => label.Text == "05/24");
         Assert.Contains(labels, label => label.Text == "13:48");
-        Assert.All(labels.Where(label => label.Text is "94%" or "99%"), label =>
+        Assert.All(labels.Where(label => label.Text == "99%"), label =>
         {
             Assert.Equal(ContentAlignment.MiddleRight, label.TextAlign);
         });
-        AssertColumnAligned(labels.Where(label => label.Text is "94%" or "99%"), 2);
-        AssertColumnAligned(labels.Where(label => label.Text is "" or "05/24"), 2);
-        AssertColumnAligned(labels.Where(label => label.Text is "18:48" or "13:48"), 2);
+        AssertColumnAligned(labels, "残り", 1);
+        AssertColumnAligned(labels.Where(label => label.Text is "" or "05/24"), 1);
+        AssertColumnAligned(labels.Where(label => label.Text == "13:48"), 1);
         AssertColumnLeft(labels, ":", 58);
         AssertColumnLeft(labels, "残り", 70);
-        AssertColumnLeft(labels.Where(label => label.Text is "94%" or "99%"), 104);
+        AssertColumnLeft(labels.Where(label => label.Text == "99%"), 104);
         AssertColumnLeft(labels.Where(label => label.Text is "" or "05/24"), 156);
-        AssertColumnLeft(labels.Where(label => label.Text is "18:48" or "13:48"), 214);
+        AssertColumnLeft(labels.Where(label => label.Text == "13:48"), 214);
     }
 
     [Fact]
@@ -182,14 +192,13 @@ public sealed class UsagePopupFormTests
     {
         using var form = new UsagePopupForm();
         var state = UsageState.Success(
-            new UsageWindow(6, new DateTimeOffset(2026, 5, 17, 18, 48, 0, TimeSpan.Zero)),
             new UsageWindow(1, new DateTimeOffset(2026, 5, 24, 13, 48, 0, TimeSpan.Zero)));
 
         form.UpdateState(state, IconTheme.Dark);
 
         var labels = LabelsIn(form)
             .Where(label => !string.IsNullOrEmpty(label.Text))
-            .Where(label => label.Top is 192 or 220)
+            .Where(label => label.Top is 192)
             .Where(label => label.Left is 12 or 58 or 70 or 104 or 156 or 214)
             .ToArray();
 
@@ -208,7 +217,6 @@ public sealed class UsagePopupFormTests
     {
         using var form = new UsagePopupForm();
         var state = UsageState.Success(
-            new UsageWindow(0, new DateTimeOffset(2026, 5, 17, 18, 48, 0, TimeSpan.Zero)),
             new UsageWindow(0, new DateTimeOffset(2026, 5, 24, 13, 48, 0, TimeSpan.Zero)));
 
         form.UpdateState(state, IconTheme.Dark);
@@ -217,7 +225,7 @@ public sealed class UsagePopupFormTests
             .Where(label => label.Text == "100%")
             .ToArray();
 
-        Assert.Equal(2, fullPercentLabels.Length);
+        Assert.Single(fullPercentLabels);
         Assert.All(fullPercentLabels, label =>
         {
             var measuredWidth = TextRenderer.MeasureText(label.Text, label.Font).Width;
@@ -229,16 +237,15 @@ public sealed class UsagePopupFormTests
     }
 
     [Fact]
-    public void Five_hour_reset_time_column_fits_every_time_of_day_inside_popup()
+    public void Week_reset_time_column_fits_every_time_of_day_inside_popup()
     {
         using var form = new UsagePopupForm();
         var state = UsageState.Success(
-            new UsageWindow(0, new DateTimeOffset(2026, 5, 17, 23, 59, 0, TimeSpan.Zero)),
             new UsageWindow(0, new DateTimeOffset(2026, 5, 24, 13, 48, 0, TimeSpan.Zero)));
 
         form.UpdateState(state, IconTheme.Dark);
 
-        var timeLabel = LabelsIn(form).Single(label => label.Text == "23:59");
+        var timeLabel = LabelsIn(form).Single(label => label.Text == "13:48");
 
         Assert.True(
             timeLabel.Right <= form.ClientSize.Width - 10,
