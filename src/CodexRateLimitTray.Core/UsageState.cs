@@ -24,19 +24,20 @@ public sealed record UsageWindow(double UsedPercent, DateTimeOffset ResetAt)
 }
 
 public sealed record UsageState(
-    UsageWindow Week,
+    UsageWindow FiveHour,
+    UsageWindow? Week,
     UsageErrorKind ErrorKind,
     string? ErrorMessage)
 {
     public bool HasError => ErrorKind != UsageErrorKind.None;
 
-    public static UsageState Success(UsageWindow week)
+    public static UsageState Success(UsageWindow fiveHour, UsageWindow? week)
     {
-        return new UsageState(week, UsageErrorKind.None, null);
+        return new UsageState(fiveHour, week, UsageErrorKind.None, null);
     }
 
     public static UsageState Error(UsageErrorKind kind, string message)
     {
-        return new UsageState(new UsageWindow(0, DateTimeOffset.Now), kind, message);
+        return new UsageState(new UsageWindow(0, DateTimeOffset.Now), null, kind, message);
     }
 }

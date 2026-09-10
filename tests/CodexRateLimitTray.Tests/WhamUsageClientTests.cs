@@ -26,11 +26,33 @@ public sealed class WhamUsageClientTests
         HttpRequestMessage? captured = null;
         using var http = new HttpClient(new StubHandler(new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = new StringContent("""{"rate_limit":{"primary_window":{"used_percent":1,"reset_at":1,"limit_window_seconds":604800},"secondary_window":null}}""")
+            Content = new StringContent("""
+            {
+              "rate_limit": {
+                "primary_window": {
+                  "used_percent": 25.5,
+                  "reset_at": 1716094800,
+                  "limit_window_seconds": 18000
+                },
+                "secondary_window": {
+                  "used_percent": 80,
+                  "reset_at": 1716181200,
+                  "limit_window_seconds": 604800
+                }
+              }
+            }
+            """)
         }, request => captured = request));
         var client = new WhamUsageClient(http, TimeZoneInfo.Utc);
 
-        await client.GetUsageAsync("abc", CancellationToken.None);
+        var state = await client.GetUsageAsync("abc", CancellationToken.None);
+
+        Assert.False(state.HasError);
+        Assert.Equal(25.5, state.FiveHour.UsedPercent);
+        Assert.Equal(new DateTimeOffset(2024, 5, 19, 5, 0, 0, TimeSpan.Zero), state.FiveHour.ResetAt);
+        Assert.NotNull(state.Week);
+        Assert.Equal(80, state.Week!.UsedPercent);
+        Assert.Equal(new DateTimeOffset(2024, 5, 20, 5, 0, 0, TimeSpan.Zero), state.Week.ResetAt);
 
         Assert.NotNull(captured);
         Assert.Equal("https://chatgpt.com/backend-api/wham/usage", captured!.RequestUri!.ToString());

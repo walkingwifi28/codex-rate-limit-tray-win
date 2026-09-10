@@ -38,7 +38,7 @@ public static class RateLimitIconRenderer
         DateTimeOffset? now = null)
     {
         var renderSize = size * SupersamplingScale;
-        using var supersampled = RenderBitmapAtSize(state, renderSize, unusedCircleColor ?? Color.Transparent, now);
+        using var supersampled = RenderBitmapAtSize(state, renderSize, theme, unusedCircleColor ?? Color.Transparent, now);
 
         var bitmap = new Bitmap(size, size, PixelFormat.Format32bppArgb);
         using var graphics = Graphics.FromImage(bitmap);
@@ -56,6 +56,7 @@ public static class RateLimitIconRenderer
     private static Bitmap RenderBitmapAtSize(
         UsageState state,
         int size,
+        IconTheme theme,
         Color unusedCircleColor,
         DateTimeOffset? now)
     {
@@ -66,14 +67,7 @@ public static class RateLimitIconRenderer
         graphics.SmoothingMode = SmoothingMode.HighQuality;
         graphics.Clear(Color.Transparent);
 
-        var weekUsed = state.HasError ? 0 : state.Week.UsedPercent;
-        DrawRings(
-            graphics,
-            size,
-            weekUsed,
-            state.HasError ? null : state.Week.ResetAt,
-            now,
-            unusedCircleColor);
+        DrawRings(graphics, size, state, theme, now, unusedCircleColor);
         return bitmap;
     }
 
@@ -101,35 +95,57 @@ public static class RateLimitIconRenderer
     private static void DrawRings(
         Graphics graphics,
         int canvasSize,
-        double weekUsedPercent,
-        DateTimeOffset? weekResetAt,
+        UsageState state,
+        IconTheme theme,
         DateTimeOffset? now,
         Color unusedCircleColor)
     {
-        var outerRect = CenteredRect(canvasSize, canvasSize);
+        var geometry = RingGeometry.For(canvasSize);
+        var week = state.Week;
 
-        DrawPieDisc(graphics, outerRect, OuterRingColor, weekUsedPercent, unusedCircleColor);
-
-        if (weekResetAt.HasValue && now.HasValue)
+        if (!state.HasError && week is not null)
         {
-            DrawWeekProgressNeedle(graphics, canvasSize, outerRect, weekResetAt.Value, now.Value);
+            DrawPieDisc(graphics, geometry.OuterRect, OuterRingColor, week.UsedPercent, unusedCircleColor);
         }
+
+        var fiveHourUsedPercent = state.HasError ? 0d : state.FiveHour.UsedPercent;
+        DrawPieDisc(
+            graphics,
+            geometry.InnerRect,
+            PaletteFor(theme).TextColor,
+            fiveHourUsedPercent,
+            unusedCircleColor);
+
+        if (state.HasError || week is null || !now.HasValue)
+        {
+            return;
+        }
+
+        DrawWeekProgressNeedle(graphics, canvasSize, geometry.OuterRect, week.ResetAt, now.Value);
     }
 
     [SupportedOSPlatform("windows")]
     private static void DrawPieDisc(Graphics graphics, RectangleF rect, Color usedColor, double usedPercent, Color unusedCircleColor)
     {
-        using var usedBrush = new SolidBrush(usedColor);
-        using var transparentPath = new GraphicsPath();
-        transparentPath.AddEllipse(rect);
+        using var circlePath = new GraphicsPath();
+        circlePath.AddEllipse(rect);
 
-        graphics.SetClip(transparentPath);
-        graphics.Clear(unusedCircleColor);
-        graphics.ResetClip();
+        var graphicsState = graphics.Save();
+        try
+        {
+            graphics.CompositingMode = CompositingMode.SourceCopy;
+            graphics.SetClip(circlePath);
+            graphics.Clear(unusedCircleColor);
+        }
+        finally
+        {
+            graphics.Restore(graphicsState);
+        }
 
         var sweep = (float)(Math.Clamp(usedPercent, 0d, 100d) / 100d * 360d);
         if (sweep > 0)
         {
+            using var usedBrush = new SolidBrush(usedColor);
             graphics.FillPie(usedBrush, rect, -90, sweep);
         }
     }
@@ -143,10 +159,14 @@ public static class RateLimitIconRenderer
         DateTimeOffset now)
     {
         const double weekWindowDays = 7d;
-        var weekStartAt = weekResetAt.AddDays(-weekWindowDays);
+        var weekStartAt = weekResetAt < DateTimeOffset.MinValue.AddDays(weekWindowDays)
+            ? DateTimeOffset.MinValue
+            : weekResetAt.AddDays(-weekWindowDays);
         var elapsed = now - weekStartAt;
         var total = weekResetAt - weekStartAt;
-        var progress = Math.Clamp(elapsed.TotalMilliseconds / total.TotalMilliseconds, 0d, 1d);
+        var progress = total <= TimeSpan.Zero
+            ? now >= weekResetAt ? 1d : 0d
+            : Math.Clamp(elapsed.TotalMilliseconds / total.TotalMilliseconds, 0d, 1d);
         var angleRadians = (-90d + (progress * 360d)) * Math.PI / 180d;
         var center = new PointF(outerRect.Left + (outerRect.Width / 2f), outerRect.Top + (outerRect.Height / 2f));
         var outerRadius = outerRect.Width / 2f;
@@ -166,6 +186,18 @@ public static class RateLimitIconRenderer
     {
         var offset = (canvasSize - diameter) / 2f;
         return new RectangleF(offset, offset, diameter, diameter);
+    }
+
+    private readonly record struct RingGeometry(RectangleF OuterRect, RectangleF InnerRect)
+    {
+        public static RingGeometry For(int canvasSize)
+        {
+            var outerDiameter = canvasSize;
+            var innerDiameter = outerDiameter * (200f / 314f);
+            return new RingGeometry(
+                CenteredRect(canvasSize, outerDiameter),
+                CenteredRect(canvasSize, innerDiameter));
+        }
     }
 
     public static IconPalette PaletteFor(IconTheme theme)
