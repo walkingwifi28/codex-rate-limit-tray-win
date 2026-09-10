@@ -6,62 +6,113 @@ namespace CodexRateLimitTray.Tests;
 public sealed class IconRendererTests
 {
     [Fact]
-    public void Renderer_draws_only_the_week_filled_pie_disc()
+    public void Renderer_draws_week_outer_ring_and_five_hour_inner_ring_clockwise()
     {
         var state = UsageState.Success(
-            new UsageWindow(25, DateTimeOffset.UnixEpoch));
+            new UsageWindow(25, DateTimeOffset.UnixEpoch),
+            new UsageWindow(50, DateTimeOffset.UnixEpoch));
 
-        using var bitmap = RateLimitIconRenderer.RenderBitmap(state, 314);
+        using var bitmap = RateLimitIconRenderer.RenderBitmap(state, 314, IconTheme.Light);
 
-        AssertColorNear(RateLimitIconRenderer.OuterRingColor, bitmap.GetPixel(210, 60));
-        Assert.Equal(0, bitmap.GetPixel(0, 0).A);
+        AssertColorNear(RateLimitIconRenderer.OuterRingColor, bitmap.GetPixel(170, 32));
+        AssertColorNear(RateLimitIconRenderer.OuterRingColor, bitmap.GetPixel(282, 157));
+        Assert.Equal(0, bitmap.GetPixel(32, 157).A);
+        AssertColorNear(RateLimitIconRenderer.LightTheme.TextColor, bitmap.GetPixel(165, 82));
+        AssertColorNear(RateLimitIconRenderer.LightTheme.TextColor, bitmap.GetPixel(220, 130));
+        Assert.Equal(0, bitmap.GetPixel(82, 157).A);
     }
 
     [Fact]
-    public void Renderer_uses_light_theme_palette()
+    public void Renderer_uses_light_theme_palette_and_inner_ring_color()
     {
         var state = UsageState.Success(
+            new UsageWindow(100, DateTimeOffset.UnixEpoch),
             new UsageWindow(100, DateTimeOffset.UnixEpoch));
 
         using var bitmap = RateLimitIconRenderer.RenderBitmap(state, 314, IconTheme.Light);
 
         Assert.Equal(ColorTranslator.FromHtml("#FFFFFF"), RateLimitIconRenderer.LightTheme.BackgroundColor);
         Assert.Equal(ColorTranslator.FromHtml("#1A1C1F"), RateLimitIconRenderer.LightTheme.TextColor);
-        AssertColorNear(ColorTranslator.FromHtml("#339CFF"), bitmap.GetPixel(157, 157));
-        AssertColorNear(ColorTranslator.FromHtml("#339CFF"), bitmap.GetPixel(210, 60));
+        AssertColorNear(RateLimitIconRenderer.OuterRingColor, bitmap.GetPixel(282, 157));
+        AssertColorNear(ColorTranslator.FromHtml("#1A1C1F"), bitmap.GetPixel(157, 157));
         Assert.Equal(0, bitmap.GetPixel(0, 0).A);
     }
 
     [Fact]
-    public void Renderer_uses_dark_theme_palette()
+    public void Renderer_uses_dark_theme_palette_and_inner_ring_color()
     {
         var state = UsageState.Success(
+            new UsageWindow(100, DateTimeOffset.UnixEpoch),
             new UsageWindow(100, DateTimeOffset.UnixEpoch));
 
         using var bitmap = RateLimitIconRenderer.RenderBitmap(state, 314, IconTheme.Dark);
 
         Assert.Equal(ColorTranslator.FromHtml("#181818"), RateLimitIconRenderer.DarkTheme.BackgroundColor);
         Assert.Equal(ColorTranslator.FromHtml("#FFFFFF"), RateLimitIconRenderer.DarkTheme.TextColor);
-        AssertColorNear(ColorTranslator.FromHtml("#339CFF"), bitmap.GetPixel(157, 157));
-        AssertColorNear(ColorTranslator.FromHtml("#339CFF"), bitmap.GetPixel(210, 60));
+        AssertColorNear(ColorTranslator.FromHtml("#339CFF"), bitmap.GetPixel(282, 157));
+        AssertColorNear(ColorTranslator.FromHtml("#FFFFFF"), bitmap.GetPixel(157, 157));
         Assert.Equal(0, bitmap.GetPixel(0, 0).A);
     }
 
     [Fact]
-    public void Renderer_leaves_unused_circle_area_transparent()
+    public void Renderer_draws_only_the_five_hour_inner_ring_when_week_is_missing()
     {
+        var resetAt = new DateTimeOffset(2026, 5, 18, 0, 0, 0, TimeSpan.Zero);
         var state = UsageState.Success(
-            new UsageWindow(100, DateTimeOffset.UnixEpoch));
+            new UsageWindow(25, resetAt),
+            null);
 
-        using var bitmap = RateLimitIconRenderer.RenderBitmap(state, 314, IconTheme.Light);
+        using var bitmap = RateLimitIconRenderer.RenderBitmap(
+            state,
+            314,
+            IconTheme.Light,
+            now: resetAt.AddDays(-3.5));
 
-        AssertColorNear(RateLimitIconRenderer.OuterRingColor, bitmap.GetPixel(157, 157));
+        AssertColorNear(RateLimitIconRenderer.LightTheme.TextColor, bitmap.GetPixel(165, 82));
+        Assert.Equal(0, bitmap.GetPixel(282, 157).A);
+        Assert.Equal(0, bitmap.GetPixel(32, 157).A);
+        Assert.Equal(0, bitmap.GetPixel(157, 300).A);
     }
 
     [Fact]
-    public void Renderer_antialiases_popup_sized_pie_edges()
+    public void Renderer_clamps_zero_full_and_out_of_range_usage()
+    {
+        var zeroState = UsageState.Success(
+            new UsageWindow(0, DateTimeOffset.UnixEpoch),
+            new UsageWindow(100, DateTimeOffset.UnixEpoch));
+        var fullState = UsageState.Success(
+            new UsageWindow(100, DateTimeOffset.UnixEpoch),
+            new UsageWindow(0, DateTimeOffset.UnixEpoch));
+        var highState = UsageState.Success(
+            new UsageWindow(125, DateTimeOffset.UnixEpoch),
+            new UsageWindow(125, DateTimeOffset.UnixEpoch));
+        var lowState = UsageState.Success(
+            new UsageWindow(-25, DateTimeOffset.UnixEpoch),
+            new UsageWindow(-25, DateTimeOffset.UnixEpoch));
+
+        using var zeroBitmap = RateLimitIconRenderer.RenderBitmap(zeroState, 314, IconTheme.Light);
+        using var fullBitmap = RateLimitIconRenderer.RenderBitmap(fullState, 314, IconTheme.Light);
+        using var highBitmap = RateLimitIconRenderer.RenderBitmap(highState, 314, IconTheme.Light);
+        using var lowBitmap = RateLimitIconRenderer.RenderBitmap(lowState, 314, IconTheme.Light);
+
+        AssertColorNear(RateLimitIconRenderer.OuterRingColor, zeroBitmap.GetPixel(170, 32));
+        Assert.Equal(0, zeroBitmap.GetPixel(165, 82).A);
+        Assert.Equal(0, fullBitmap.GetPixel(170, 32).A);
+        AssertColorNear(RateLimitIconRenderer.LightTheme.TextColor, fullBitmap.GetPixel(165, 82));
+        AssertColorNear(RateLimitIconRenderer.LightTheme.TextColor, fullBitmap.GetPixel(157, 157));
+        AssertColorNear(RateLimitIconRenderer.OuterRingColor, highBitmap.GetPixel(282, 157));
+        AssertColorNear(RateLimitIconRenderer.LightTheme.TextColor, highBitmap.GetPixel(165, 82));
+        AssertColorNear(RateLimitIconRenderer.LightTheme.TextColor, highBitmap.GetPixel(157, 157));
+        Assert.Equal(0, lowBitmap.GetPixel(282, 157).A);
+        Assert.Equal(0, lowBitmap.GetPixel(157, 157).A);
+        Assert.Equal(0, lowBitmap.GetPixel(165, 82).A);
+    }
+
+    [Fact]
+    public void Renderer_antialiases_popup_sized_ring_edges()
     {
         var state = UsageState.Success(
+            new UsageWindow(25, DateTimeOffset.UnixEpoch),
             new UsageWindow(66, DateTimeOffset.UnixEpoch));
 
         using var bitmap = RateLimitIconRenderer.RenderBitmap(state, 124, IconTheme.Light);
@@ -88,6 +139,7 @@ public sealed class IconRendererTests
         var resetAt = new DateTimeOffset(2026, 5, 18, 0, 0, 0, TimeSpan.Zero);
         var halfwayToReset = resetAt.AddDays(-3.5);
         var state = UsageState.Success(
+            new UsageWindow(25, resetAt),
             new UsageWindow(0, resetAt));
 
         using var bitmap = RateLimitIconRenderer.RenderBitmap(state, 314, IconTheme.Light, now: halfwayToReset);
@@ -98,11 +150,44 @@ public sealed class IconRendererTests
     }
 
     [Fact]
+    public void Renderer_does_not_draw_week_progress_needle_without_week_state()
+    {
+        var resetAt = new DateTimeOffset(2026, 5, 18, 0, 0, 0, TimeSpan.Zero);
+        var state = UsageState.Success(
+            new UsageWindow(25, resetAt),
+            null);
+
+        using var bitmap = RateLimitIconRenderer.RenderBitmap(state, 314, IconTheme.Light, now: resetAt.AddDays(-3.5));
+
+        AssertColorNear(RateLimitIconRenderer.LightTheme.TextColor, bitmap.GetPixel(165, 82));
+        Assert.Equal(0, bitmap.GetPixel(282, 157).A);
+        Assert.Equal(0, bitmap.GetPixel(157, 300).A);
+    }
+
+    [Fact]
+    public void Renderer_handles_minimum_unix_week_reset_without_throwing()
+    {
+        var minimumResetAt = DateTimeOffset.FromUnixTimeSeconds(-62135596800);
+        var state = UsageState.Success(
+            new UsageWindow(25, DateTimeOffset.UnixEpoch),
+            new UsageWindow(50, minimumResetAt));
+
+        using var bitmap = RateLimitIconRenderer.RenderBitmap(
+            state,
+            314,
+            IconTheme.Light,
+            now: DateTimeOffset.UnixEpoch);
+
+        Assert.NotNull(bitmap);
+    }
+
+    [Fact]
     public void RenderIcon_draws_week_progress_needle_for_tray_icon()
     {
         var resetAt = new DateTimeOffset(2026, 5, 18, 0, 0, 0, TimeSpan.Zero);
         var halfwayToReset = resetAt.AddDays(-3.5);
         var state = UsageState.Success(
+            new UsageWindow(25, resetAt),
             new UsageWindow(0, resetAt));
 
         using var icon = RateLimitIconRenderer.RenderIcon(state, 32, IconTheme.Light, halfwayToReset);
@@ -117,6 +202,7 @@ public sealed class IconRendererTests
         var resetAt = new DateTimeOffset(2026, 5, 18, 0, 0, 0, TimeSpan.Zero);
         var halfwayToReset = resetAt.AddDays(-3.5);
         var state = UsageState.Success(
+            new UsageWindow(25, resetAt),
             new UsageWindow(0, resetAt));
 
         using var icon = RateLimitIconRenderer.RenderIcon(state, 32, IconTheme.Light, halfwayToReset);

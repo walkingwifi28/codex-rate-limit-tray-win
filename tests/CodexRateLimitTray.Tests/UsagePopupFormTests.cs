@@ -1,6 +1,7 @@
 using CodexRateLimitTray;
 using CodexRateLimitTray.Core;
 using System.Drawing;
+using System.Globalization;
 using System.Reflection;
 using System.Windows.Forms;
 
@@ -9,6 +10,7 @@ namespace CodexRateLimitTray.Tests;
 public sealed class UsagePopupFormTests
 {
     private static readonly UsageState LoadedState = UsageState.Success(
+        new UsageWindow(6, new DateTimeOffset(2026, 5, 17, 18, 48, 0, TimeSpan.Zero)),
         new UsageWindow(1, new DateTimeOffset(2026, 5, 24, 13, 48, 0, TimeSpan.Zero)));
 
     [Fact]
@@ -155,36 +157,37 @@ public sealed class UsagePopupFormTests
     }
 
     [Fact]
-    public void Usage_parts_are_laid_out_in_matching_columns()
+    public void Usage_rows_are_laid_out_in_matching_columns_and_fit_inside_popup()
     {
         using var form = new UsagePopupForm();
-        var state = UsageState.Success(
-            new UsageWindow(1, new DateTimeOffset(2026, 5, 24, 13, 48, 0, TimeSpan.Zero)));
 
-        form.UpdateState(state, IconTheme.Dark);
+        form.UpdateState(LoadedState, IconTheme.Dark);
 
         var labels = LabelsIn(form)
-            .Where(label => label.Text != UsageDisplayFormatter.Title)
-            .Where(label => label.Top is 192)
+            .Where(label => label.Top is 192 or 220)
             .Where(label => label.Left is 12 or 58 or 70 or 104 or 156 or 214)
             .ToArray();
 
-        Assert.Contains(labels, label => label.Text == "週");
-        Assert.Contains(labels, label => label.Text == "99%");
-        Assert.Contains(labels, label => label.Text == "05/24");
-        Assert.Contains(labels, label => label.Text == "13:48");
-        Assert.All(labels.Where(label => label.Text == "99%"), label =>
+        Assert.Equal(12, labels.Length);
+        Assert.Equal(
+            new[] { "5時間", ":", "残り", "94%", "", "18:48" },
+            labels.Where(label => label.Top == 192).OrderBy(label => label.Left).Select(label => label.Text));
+        Assert.Equal(
+            new[] { "週", ":", "残り", "99%", "05/24", "13:48" },
+            labels.Where(label => label.Top == 220).OrderBy(label => label.Left).Select(label => label.Text));
+
+        Assert.Equal(new Size(281, 260), form.ClientSize);
+        Assert.Equal(22, labels[0].Height);
+        Assert.All(labels, label =>
+        {
+            Assert.Contains(label.Left, new[] { 12, 58, 70, 104, 156, 214 });
+            Assert.True(label.Right <= form.ClientSize.Width - 10);
+            Assert.True(label.Bottom <= form.ClientSize.Height);
+        });
+        Assert.All(labels.Where(label => label.Text is "94%" or "99%"), label =>
         {
             Assert.Equal(ContentAlignment.MiddleRight, label.TextAlign);
         });
-        AssertColumnAligned(labels, "残り", 1);
-        AssertColumnAligned(labels.Where(label => label.Text is "" or "05/24"), 1);
-        AssertColumnAligned(labels.Where(label => label.Text == "13:48"), 1);
-        AssertColumnLeft(labels, ":", 58);
-        AssertColumnLeft(labels, "残り", 70);
-        AssertColumnLeft(labels.Where(label => label.Text == "99%"), 104);
-        AssertColumnLeft(labels.Where(label => label.Text is "" or "05/24"), 156);
-        AssertColumnLeft(labels.Where(label => label.Text == "13:48"), 214);
     }
 
     [Fact]
@@ -192,7 +195,8 @@ public sealed class UsagePopupFormTests
     {
         using var form = new UsagePopupForm();
         var state = UsageState.Success(
-            new UsageWindow(1, new DateTimeOffset(2026, 5, 24, 13, 48, 0, TimeSpan.Zero)));
+            new UsageWindow(1, new DateTimeOffset(2026, 5, 24, 13, 48, 0, TimeSpan.Zero)),
+            null);
 
         form.UpdateState(state, IconTheme.Dark);
 
@@ -217,7 +221,8 @@ public sealed class UsagePopupFormTests
     {
         using var form = new UsagePopupForm();
         var state = UsageState.Success(
-            new UsageWindow(0, new DateTimeOffset(2026, 5, 24, 13, 48, 0, TimeSpan.Zero)));
+            new UsageWindow(0, new DateTimeOffset(2026, 5, 24, 13, 48, 0, TimeSpan.Zero)),
+            null);
 
         form.UpdateState(state, IconTheme.Dark);
 
@@ -240,10 +245,8 @@ public sealed class UsagePopupFormTests
     public void Week_reset_time_column_fits_every_time_of_day_inside_popup()
     {
         using var form = new UsagePopupForm();
-        var state = UsageState.Success(
-            new UsageWindow(0, new DateTimeOffset(2026, 5, 24, 13, 48, 0, TimeSpan.Zero)));
 
-        form.UpdateState(state, IconTheme.Dark);
+        form.UpdateState(LoadedState, IconTheme.Dark);
 
         var timeLabel = LabelsIn(form).Single(label => label.Text == "13:48");
 
@@ -265,6 +268,52 @@ public sealed class UsagePopupFormTests
         }
     }
 
+    [Fact]
+    public void Week_row_is_blank_without_week_state_and_does_not_show_error()
+    {
+        using var form = new UsagePopupForm();
+        var state = UsageState.Success(
+            new UsageWindow(6, new DateTimeOffset(2026, 5, 17, 18, 48, 0, TimeSpan.Zero)),
+            null);
+
+        form.UpdateState(state, IconTheme.Dark);
+
+        var weekLabels = LabelsAtTop(form, 220);
+
+        Assert.Equal(6, weekLabels.Length);
+        Assert.All(weekLabels, label => Assert.Equal(string.Empty, label.Text));
+        Assert.DoesNotContain(LabelsIn(form), label => label.Text == "取得できません");
+        Assert.DoesNotContain(LabelsIn(form), label => label.Text == "不明なエラー");
+    }
+
+    [Fact]
+    public void Popup_formats_maximum_percent_and_time_invariantly()
+    {
+        var originalCulture = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("de-DE");
+
+            using var form = new UsagePopupForm();
+            var state = UsageState.Success(
+                new UsageWindow(-10, new DateTimeOffset(2026, 5, 17, 23, 59, 0, TimeSpan.Zero)),
+                new UsageWindow(-10, new DateTimeOffset(2026, 5, 24, 23, 59, 0, TimeSpan.Zero)));
+
+            form.UpdateState(state, IconTheme.Dark);
+
+            Assert.Equal(
+                new[] { "5時間", ":", "残り", "100%", "", "23:59" },
+                LabelsAtTop(form, 192).Select(label => label.Text));
+            Assert.Equal(
+                new[] { "週", ":", "残り", "100%", "05/24", "23:59" },
+                LabelsAtTop(form, 220).Select(label => label.Text));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+        }
+    }
+
     private static IEnumerable<Label> LabelsIn(Control control)
     {
         foreach (Control child in control.Controls)
@@ -279,6 +328,15 @@ public sealed class UsagePopupFormTests
                 yield return nested;
             }
         }
+    }
+
+    private static Label[] LabelsAtTop(Control control, int top)
+    {
+        return LabelsIn(control)
+            .Where(label => label.Top == top)
+            .Where(label => label.Left is 12 or 58 or 70 or 104 or 156 or 214)
+            .OrderBy(label => label.Left)
+            .ToArray();
     }
 
     private static Button PinButtonIn(Control control)
@@ -299,35 +357,4 @@ public sealed class UsagePopupFormTests
             .Invoke(form, [EventArgs.Empty]);
     }
 
-    private static void AssertColumnAligned(IEnumerable<Label> labels, string text, int expectedCount)
-    {
-        var matching = labels.Where(label => label.Text == text).ToArray();
-
-        Assert.Equal(expectedCount, matching.Length);
-        Assert.Single(matching.Select(label => label.Left).Distinct());
-    }
-
-    private static void AssertColumnAligned(IEnumerable<Label> labels, int expectedCount)
-    {
-        var matching = labels.ToArray();
-
-        Assert.Equal(expectedCount, matching.Length);
-        Assert.Single(matching.Select(label => label.Left).Distinct());
-    }
-
-    private static void AssertColumnLeft(IEnumerable<Label> labels, string text, int expectedLeft)
-    {
-        var matching = labels.Where(label => label.Text == text).ToArray();
-
-        Assert.NotEmpty(matching);
-        Assert.All(matching, label => Assert.Equal(expectedLeft, label.Left));
-    }
-
-    private static void AssertColumnLeft(IEnumerable<Label> labels, int expectedLeft)
-    {
-        var matching = labels.ToArray();
-
-        Assert.NotEmpty(matching);
-        Assert.All(matching, label => Assert.Equal(expectedLeft, label.Left));
-    }
 }

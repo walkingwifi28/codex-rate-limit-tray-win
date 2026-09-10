@@ -1,6 +1,8 @@
+using System.Globalization;
+
 namespace CodexRateLimitTray.Core;
 
-public sealed record UsageDisplayLines(string Week);
+public sealed record UsageDisplayLines(string FiveHour, string Week);
 
 public static class UsageDisplayFormatter
 {
@@ -11,16 +13,33 @@ public static class UsageDisplayFormatter
 
     public static UsageDisplayLines FormatUsageLines(UsageState state)
     {
-        return new UsageDisplayLines(FormatLine("週", state.Week.RemainingText, state.Week.WeekResetText));
+        var fiveHour = FormatLine("5時間", state.FiveHour.RemainingText, state.FiveHour.ResetText);
+        var week = state.Week is null
+            ? string.Empty
+            : FormatLine("週", state.Week.RemainingText, state.Week.WeekResetText);
+
+        return new UsageDisplayLines(fiveHour, week);
     }
 
     public static string FormatTooltipText(UsageState state)
     {
-        return $"Codexレート制限 : {state.Week.RemainingText}%";
+        var weekRemaining = state.Week is null
+            ? "-"
+            : $"{state.Week.RemainingText}%";
+        return string.Format(
+            CultureInfo.InvariantCulture,
+            "Codexレート制限 : {0}% / {1}",
+            state.FiveHour.RemainingText,
+            weekRemaining);
     }
 
     private static string FormatLine(string label, string remainingText, string resetText)
     {
-        return $"{label,-LabelWidth}: 残り{remainingText,RemainingWidth}% {resetText,ResetWidth}";
+        return string.Format(
+            CultureInfo.InvariantCulture,
+            "{0,-" + LabelWidth + "}: 残り{1," + RemainingWidth + "}% {2," + ResetWidth + "}",
+            label,
+            remainingText,
+            resetText);
     }
 }
