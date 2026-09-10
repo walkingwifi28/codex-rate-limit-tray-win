@@ -28,13 +28,15 @@ dotnet publish src\CodexRateLimitTray\CodexRateLimitTray.csproj -c Release -r wi
 
 ## Distribution
 
-配布は GitHub Releases 上の Inno Setup installer を winget manifest から参照します。タグ `vX.Y.Z` を push すると GitHub Actions が test、publish、installer 生成、SHA256 生成、GitHub Release 添付を実行します。
+配布は GitHub Releases 上の Inno Setup installer を winget manifest から参照します。タグ `vX.Y.Z` を push すると GitHub Actions が test、publish、installer 生成、SHA256 生成、GitHub Release 添付、WinGet manifest の生成・提出まで自動実行します。
 
-winget manifest の `InstallerSha256` はリリースで生成された `.sha256` の値に置き換えてから `winget-pkgs` に提出します。
+自動提出には、リポジトリシークレット `WINGET_CREATE_GITHUB_TOKEN` を一度だけ設定してください。値は `public_repo` 権限を持つ GitHub classic PAT を使用します。また、`wingetcreate` が利用する GitHub fork は `microsoft/winget-pkgs` の最新状態と同期しておく必要があります。
+
+Microsoft によるレビューとマージは自動化されず、提出後も手動で行われます。
 
 ### WinGet manifest の更新
 
-`wingetcreate` を使うと、manifest の生成、SHA256 の計算、`winget-pkgs` への Pull Request 作成まで自動化できます。初回だけインストールと GitHub 認証を行います。
+通常はリリースタグの push による自動提出を使用します。自動提出に失敗した場合や再提出が必要な場合は、`wingetcreate` を手動実行できます。初回だけインストールと GitHub 認証を行います。
 
 ```powershell
 winget install wingetcreate
@@ -50,7 +52,7 @@ wingetcreate update WalkingWiFi.CodexRateLimitTray `
   --submit
 ```
 
-次回以降は URL と `-v` のバージョン番号を対象のリリースに合わせて変更します。
+次回以降は URL と `-v` のバージョン番号を対象のリリースに合わせて変更します。提出先の fork が `microsoft/winget-pkgs` と同期済みであることを確認してください。
 
 ### Code signing
 

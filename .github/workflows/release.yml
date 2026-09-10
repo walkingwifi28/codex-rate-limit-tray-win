@@ -5,6 +5,10 @@ on:
     tags:
       - "v*.*.*"
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
   actions: read
@@ -12,8 +16,17 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
 
     steps:
+      - name: Validate release tag
+        shell: pwsh
+        run: |
+          if ($env:RELEASE_TAG -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') {
+            throw "Invalid release tag '$env:RELEASE_TAG'. Expected vMAJOR.MINOR.PATCH."
+          }
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-dotnet@v4
@@ -26,7 +39,7 @@ jobs:
       - name: Publish
         shell: pwsh
         run: |
-          $version = "${{ github.ref_name }}".TrimStart("v")
+          $version = $env:RELEASE_TAG.TrimStart("v")
           dotnet publish src/CodexRateLimitTray/CodexRateLimitTray.csproj `
             --configuration Release `
             --runtime win-x64 `
@@ -43,7 +56,7 @@ jobs:
       - name: Build installer
         shell: pwsh
         run: |
-          $env:APP_VERSION = "${{ github.ref_name }}".TrimStart("v")
+          $env:APP_VERSION = $env:RELEASE_TAG.TrimStart("v")
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer\CodexRateLimitTray.iss
 
       - name: Checksum
@@ -65,3 +78,152 @@ jobs:
           files: |
             ${{ env.INSTALLER }}
             ${{ env.CHECKSUM }}
+
+  submit-winget:
+    needs: build
+    runs-on: windows-latest
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
+
+      - name: Download wingetcreate
+        shell: pwsh
+        run: |
+          $wingetCreatePath = "$env:RUNNER_TEMP\wingetcreate.exe"
+          Invoke-WebRequest `
+            -Uri "https://github.com/microsoft/winget-create/releases/download/v1.12.13.0/wingetcreate.exe" `
+            -OutFile $wingetCreatePath `
+            -ErrorAction Stop
+
+          $expectedHash = "24042BD37915805615E6CF969AC57C6439124C3FE85823327F5F3FB24BD9FFEA"
+          $actualHash = (Get-FileHash $wingetCreatePath -Algorithm SHA256 -ErrorAction Stop).Hash.ToUpperInvariant()
+          if ($actualHash -cne $expectedHash) {
+            throw "wingetcreate.exe SHA-256 mismatch. Expected $expectedHash, got $actualHash."
+          }
+
+      - name: Submit WinGet update
+        shell: pwsh
+        env:
+          WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.WINGET_CREATE_GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.WINGET_CREATE_GITHUB_TOKEN }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:WINGET_CREATE_GITHUB_TOKEN)) {
+            throw "Repository secret WINGET_CREATE_GITHUB_TOKEN is required."
+          }
+
+          $version = $env:RELEASE_TAG -replace '^v', ''
+          $assetUrl = "https://github.com/${env:GITHUB_REPOSITORY}/releases/download/${env:RELEASE_TAG}/CodexRateLimitTray-$version-win-x64-setup.exe"
+
+          $assetAvailable = $false
+          $lastException = $null
+          $lastStatus = $null
+          for ($attempt = 1; $attempt -le 5; $attempt++) {
+            try {
+              $response = Invoke-WebRequest -Uri $assetUrl -Method Head -UseBasicParsing -ErrorAction Stop
+              $lastStatus = $response.StatusCode
+              if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 400) {
+                $assetAvailable = $true
+                break
+              }
+              $lastException = "Unexpected HTTP status $($response.StatusCode)."
+            } catch {
+              $lastException = $_.Exception
+              if ($null -ne $_.Exception.Response) {
+                $lastStatus = $_.Exception.Response.StatusCode.value__
+              }
+            }
+
+            if ($attempt -lt 5) {
+              Start-Sleep -Seconds ([math]::Pow(2, $attempt - 1))
+            }
+          }
+          if (-not $assetAvailable) {
+            $lastError = if ($lastException -is [System.Exception]) { $lastException.Message } else { [string]$lastException }
+            throw "GitHub Release asset is unavailable after 5 attempts: $assetUrl. Last status: $lastStatus. Last error: $lastError"
+          }
+
+          $prJson = gh api --paginate --slurp --method GET search/issues `
+            -f q="repo:microsoft/winget-pkgs is:pr is:open WalkingWiFi.CodexRateLimitTray" `
+            -f per_page=100
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to query open winget-pkgs pull requests; refusing to submit."
+          }
+
+          try {
+            $prJsonText = $prJson -join [Environment]::NewLine
+            $prPages = @($prJsonText | ConvertFrom-Json -ErrorAction Stop)
+          } catch {
+            throw "Failed to parse open winget-pkgs pull request search results: $($_.Exception.Message)"
+          }
+          if ($prPages.Count -eq 0) {
+            throw "Open winget-pkgs pull request search returned no pages."
+          }
+
+          $expectedTotalCount = $null
+          $openPrs = @()
+          $pageNumber = 0
+          foreach ($page in $prPages) {
+            $pageNumber++
+            foreach ($propertyName in @("total_count", "incomplete_results", "items")) {
+              if ($null -eq $page.PSObject.Properties[$propertyName]) {
+                throw "Open winget-pkgs pull request search page $pageNumber is missing '$propertyName'."
+              }
+            }
+            if ([bool]$page.incomplete_results) {
+              throw "Open winget-pkgs pull request search page $pageNumber is incomplete."
+            }
+            if ($page.total_count -isnot [int] -and $page.total_count -isnot [long]) {
+              throw "Open winget-pkgs pull request search page $pageNumber has an invalid total_count."
+            }
+            if ($null -eq $expectedTotalCount) {
+              $expectedTotalCount = [int64]$page.total_count
+            } elseif ([int64]$page.total_count -ne $expectedTotalCount) {
+              throw "Open winget-pkgs pull request search pages disagree on total_count."
+            }
+            if ($null -eq $page.items -or $page.items -is [string]) {
+              throw "Open winget-pkgs pull request search page $pageNumber has malformed items."
+            }
+
+            foreach ($item in @($page.items)) {
+              foreach ($propertyName in @("number", "title", "body", "pull_request")) {
+                if ($null -eq $item.PSObject.Properties[$propertyName]) {
+                  throw "Open winget-pkgs pull request search page $pageNumber contains a malformed PR item missing '$propertyName'."
+                }
+              }
+              if ($item.number -isnot [int] -and $item.number -isnot [long]) {
+                throw "Open winget-pkgs pull request search page $pageNumber contains a PR item with an invalid number."
+              }
+              if ($item.title -isnot [string]) {
+                throw "Open winget-pkgs pull request search page $pageNumber contains a PR item with an invalid title."
+              }
+            }
+            $openPrs += @($page.items)
+          }
+          if ([int64]$openPrs.Count -ne $expectedTotalCount) {
+            throw "Open winget-pkgs pull request search returned $($openPrs.Count) items but reported $expectedTotalCount."
+          }
+
+          $packagePattern = '(?<![A-Za-z0-9_.-])WalkingWiFi\.CodexRateLimitTray(?![A-Za-z0-9_.-])'
+          $versionPattern = "(?<![A-Za-z0-9_.-])$([regex]::Escape($version))(?![A-Za-z0-9_.-])"
+          foreach ($pr in $openPrs) {
+            $text = "$($pr.title)`n$($pr.body)"
+            if ($text -cmatch $packagePattern -and $text -cmatch $versionPattern) {
+              Write-Output "::notice title=WinGet submission skipped::Open winget-pkgs PR #$($pr.number) already covers WalkingWiFi.CodexRateLimitTray $version."
+              exit 0
+            }
+          }
+
+          & "$env:RUNNER_TEMP\wingetcreate.exe" update WalkingWiFi.CodexRateLimitTray `
+            --urls $assetUrl `
+            --version $version `
+            --submit `
+            --no-open
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
